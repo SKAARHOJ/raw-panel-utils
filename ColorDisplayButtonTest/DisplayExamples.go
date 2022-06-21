@@ -165,6 +165,7 @@ var HWCtextStrings = []string{
 	"HWCt#0=-1234|1||Inverted||x:|y:|4567|2||||||||||1", // Box type 2
 
 	"HWCt#0=||||1|Color|Images|||||||||1|9|4", // Header
+	`{"HWCIDs":[38],"HWCMode": {"State": 4},"HWCColor": {"ColorIndex": {"Index": 9}},"HWCText": {"IntegerValue": 9999,"Formatting": 2,"ModifierIcon": 5,"Title": "Value:","SolidHeaderBar": true}}`, // JSON example of state
 }
 
 var HWCgfxStrings = [][]string{
