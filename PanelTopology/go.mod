@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/SKAARHOJ/rawpanel-lib/topology v0.0.0-20220621113050-8b9f3c65d90e // indirect
 	github.com/antchfx/xpath v0.0.0-20170515025933-1f3266e77307 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
@@ -20,3 +21,5 @@ require (
 )
 
 replace github.com/SKAARHOJ/rawpanel-lib => ../../rawpanel-lib
+
+replace github.com/SKAARHOJ/rawpanel-lib/topology => ../../rawpanel-lib/topology

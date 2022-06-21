@@ -31,90 +31,9 @@ import (
 
 	log "github.com/s00500/env_logger"
 	xml "github.com/subchen/go-xmldom"
+
+	topology "github.com/SKAARHOJ/rawpanel-lib/topology"
 )
-
-// TODO: Import these definitions from somewhere else... (so it is shared)
-type Topology struct {
-	Title     string `json:"title,omitempty"` // Controller Title
-	HWc       []TopologyHWcomponent
-	TypeIndex map[uint32]TopologyHWcTypeDef `json:"typeIndex"`
-}
-type TopologyHWcomponent struct {
-	Id           uint32              `json:"id"`   // The HWCid - follows the index (+1) of the $HWc
-	X            int                 `json:"x"`    // x coordinate (1/10th mm) - index 1 of the entries in $HWc
-	Y            int                 `json:"y"`    // y coordinate (1/10th mm) - index 2 of the entries in $HWc
-	Txt          string              `json:"txt"`  // text label, possibly split in two lines by "|"
-	Type         uint32              `json:"type"` // Type number, must be a key in $subElements (generateTopologies.phpsh) and thereby a key in the TypeIndex map. Type 0 (zero) means disabled.
-	TypeOverride *TopologyHWcTypeDef `json:"typeOverride,omitempty"`
-}
-
-// See DC_SKAARHOJ_RawPanel.odt for descriptions:
-type TopologyHWcTypeDef struct {
-	W      int                         `json:"w,omitempty"` //
-	H      int                         `json:"h,omitempty"`
-	Out    string                      `json:"out,omitempty"`    // Output type:
-	In     string                      `json:"in,omitempty"`     // Input type:
-	Desc   string                      `json:"desc,omitempty"`   // Description
-	Ext    string                      `json:"ext,omitempty"`    // Extended return value mode
-	Subidx int                         `json:"subidx,omitempty"` // A reference to the index of an element in the "sub" element which has a "special" meaning. For analog (av, ah, ar) and intensity (iv, ih, ir) elements, this would be an element suggested for being used as a handle for a fader or joystick.
-	Disp   *TopologyHWcTypeDef_Display `json:"disp,omitempty"`   // Display description
-	Sub    []TopologyHWcTypeDefSubEl   `json:"sub,omitempty"`
-}
-
-type TopologyHWcTypeDefSubEl struct {
-	ObjType string `json:"_,omitempty"`
-	X       int    `json:"_x,omitempty"`
-	Y       int    `json:"_y,omitempty"`
-	W       int    `json:"_w,omitempty"`
-	H       int    `json:"_h,omitempty"`
-	R       int    `json:"r,omitempty"`
-	Rx      int    `json:"rx,omitempty"`
-	Ry      int    `json:"ry,omitempty"`
-	Style   string `json:"style,omitempty"`
-	Idx     int    `json:"_idx,omitempty"`
-}
-type TopologyHWcTypeDef_Display struct {
-	W      int    `json:"w,omitempty"`      // Pixel width of display
-	H      int    `json:"h,omitempty"`      // Pixel height of display
-	Subidx int    `json:"subidx,omitempty"` // Index of the sub element which placeholds for the display area. -1 if no sub element is used for that
-	Type   string `json:"type,omitempty"`   // Additional features of display. "color" for example.
-}
-
-func (topology *Topology) verify() {
-
-	uniqueIDs := make(map[uint32]bool)
-	typeCount := make(map[uint32]int)
-	for _, HWc := range topology.HWc {
-		// Check uniqueness of ids:
-		if _, ok := uniqueIDs[HWc.Id]; !ok {
-			uniqueIDs[HWc.Id] = true
-		} else {
-			fmt.Printf("ERROR: ID %d listed multiple times\n", HWc.Id)
-		}
-
-		// Check availability of typeIndex:
-		if HWc.Type != 0 { // If not disabled.
-			if _, ok := topology.TypeIndex[HWc.Type]; !ok {
-				fmt.Printf("ERROR: Type %d not found in type index\n", HWc.Type)
-			} else {
-				typeCount[HWc.Type]++
-				/*
-					if HWc.TypeOverride.Subidx >= 0 {
-						if len(topology.TypeIndex[HWc.Type].Sub) <= HWc.TypeOverride.Subidx {
-							fmt.Printf("ERROR: Subidx %d not found in type index\n", HWc.TypeOverride.Subidx)
-						}
-					}
-				*/
-			}
-		}
-	}
-
-	for key, _ := range topology.TypeIndex {
-		if _, ok := typeCount[key]; !ok {
-			fmt.Printf("Warning: Type %d not used in HWcID index\n", key)
-		}
-	}
-}
 
 // Panel centric view:
 // Inbound TCP commands - from external system to SKAARHOJ panel
@@ -234,7 +153,7 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 
 	topologyJSON := ""
 	topologySVG := ""
-	var topologyData Topology
+	var topologyData topology.Topology
 
 	for {
 		select {
@@ -282,7 +201,7 @@ func addFormatting(newHWc *xml.Node, id int) {
 	newHWc.SetAttributeValue("id", "HWc"+strconv.Itoa(id)) // Also, lets add an id to the element! This is not mandatory, but you are likely to want this to program some interaction with the SVG
 }
 
-func addSubElFormatting(newHWc *xml.Node, subEl *TopologyHWcTypeDefSubEl) {
+func addSubElFormatting(newHWc *xml.Node, subEl *topology.TopologyHWcTypeDefSubEl) {
 
 	if subEl.Rx != 0 {
 		newHWc.SetAttributeValue("rx", strconv.Itoa(subEl.Rx))
@@ -313,10 +232,10 @@ func generateCompositeSVG(topologyJSON string, topologySVG string) {
 	}
 
 	// Reading JSON topology:
-	var topology Topology
+	var topology topology.Topology
 	json.Unmarshal([]byte(topologyJSON), &topology)
 
-	topology.verify()
+	topology.Verify()
 
 	for _, HWcDef := range topology.HWc {
 		typeDef := topology.TypeIndex[HWcDef.Type]
