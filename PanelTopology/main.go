@@ -153,12 +153,14 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 					case incomingMessages := <-incoming:
 						if binaryPanel {
 							for _, msg := range incomingMessages {
-								pbdata, _ := proto.Marshal(msg)
+								pbdata, err := proto.Marshal(msg)
+								log.Should(err)
 								header := make([]byte, 4)                                  // Create a 4-bytes header
 								binary.LittleEndian.PutUint32(header, uint32(len(pbdata))) // Fill it in
 								pbdata = append(header, pbdata...)                         // and concatenate it with the binary message
-								fmt.Println("System -> Panel: ", pbdata)
-								c.Write(pbdata)
+								//log.Println("System -> Panel: ", pbdata)
+								_, err = c.Write(pbdata)
+								log.Should(err)
 							}
 						} else {
 							lines := helpers.InboundMessagesToRawPanelASCIIstrings(incomingMessages)

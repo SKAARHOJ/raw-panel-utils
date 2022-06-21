@@ -107,24 +107,36 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 
 			if binaryPanel {
 				for {
-					byteArray := make([]byte, 15000)
-					byteCount, err := c.Read(byteArray)
+					c.SetReadDeadline(time.Time{}) // Reset deadline, waiting for header
+					headerArray := make([]byte, 4)
+					_, err := io.ReadFull(c, headerArray) // Read 4 header bytes
 					if err != nil {
 						if err == io.EOF {
 							fmt.Println("Panel: " + c.RemoteAddr().String() + " disconnected")
 							time.Sleep(time.Second)
 						} else {
-							fmt.Println(err)
+							fmt.Println("Binary: ", err)
 						}
 						break
 					} else {
-						if byteCount > 0 {
-							outgoingMessage := &rwp.OutboundMessage{}
-							byteArray = byteArray[4:] // The outbound messages are usually short, so it's fine to just ignore the length header for now
-							proto.Unmarshal(byteArray, outgoingMessage)
-							if outgoingMessage.FlowMessage != 2 { // ack
-								outgoing <- []*rwp.OutboundMessage{outgoingMessage}
+						currentPayloadLength := binary.LittleEndian.Uint32(headerArray[0:4])
+						if currentPayloadLength < 500000 {
+							payload := make([]byte, currentPayloadLength)
+							c.SetReadDeadline(time.Now().Add(2 * time.Second)) // Set a deadline that we want all data within at most 2 seconds. This helps a run-away scenario where not all data arrives or we read the wront (and too big) header
+							_, err := io.ReadFull(c, payload)
+							if err != nil {
+								fmt.Println(err)
+								break
+							} else {
+								outgoingMessage := &rwp.OutboundMessage{}
+								proto.Unmarshal(payload, outgoingMessage)
+								if outgoingMessage.FlowMessage != 2 { // ack
+									outgoing <- []*rwp.OutboundMessage{outgoingMessage}
+								}
 							}
+						} else {
+							fmt.Println("Error: Payload", currentPayloadLength, "exceed limit")
+							break
 						}
 					}
 				}
@@ -158,6 +170,7 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 }
 
 func connectToSystem(systemIPAndPort string, incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage, binarySystem bool) {
+	var rwpASCIIreader helpers.ASCIIreader
 
 	for {
 		fmt.Println("Trying to connect to system on " + systemIPAndPort + "...")
@@ -241,32 +254,45 @@ func connectToSystem(systemIPAndPort string, incoming chan []*rwp.InboundMessage
 
 			if binarySystem {
 				for {
-					byteArray := make([]byte, 15000) // Important to keep this initialized inside the loop, otherwise I experienced how existing content was repeatedly sent.
-					byteCount, err := c.Read(byteArray)
+					c.SetReadDeadline(time.Time{}) // Reset deadline, waiting for header
+					headerArray := make([]byte, 4)
+					_, err := io.ReadFull(c, headerArray) // Read 4 header bytes
 					if err != nil {
 						if err == io.EOF {
 							fmt.Println("System: " + c.RemoteAddr().String() + " disconnected")
+							time.Sleep(time.Second)
 						} else {
-							fmt.Println(err)
+							fmt.Println("Binary: ", err)
 						}
 						break
 					} else {
-						if byteCount > 0 {
-							incomingMessage := &rwp.InboundMessage{}
-							byteArray = byteArray[4:] // TODO:....... Implement check on length of messages!!! they may be big images...
-							proto.Unmarshal(byteArray, incomingMessage)
-							inboundMessages := []*rwp.InboundMessage{incomingMessage}
-							if incomingMessage.FlowMessage != 2 { // ack
-								if incomingMessage.Command.ActivatePanel {
-									inboundMessages = append(inboundMessages, &rwp.InboundMessage{
-										Command: &rwp.Command{
-											ReportHWCavailability: true,
-										},
-									})
-								}
+						currentPayloadLength := binary.LittleEndian.Uint32(headerArray[0:4])
+						if currentPayloadLength < 500000 {
+							payload := make([]byte, currentPayloadLength)
+							c.SetReadDeadline(time.Now().Add(2 * time.Second)) // Set a deadline that we want all data within at most 2 seconds. This helps a run-away scenario where not all data arrives or we read the wront (and too big) header
+							_, err := io.ReadFull(c, payload)
+							if err != nil {
+								fmt.Println(err)
+								break
+							} else {
+								incomingMessage := &rwp.InboundMessage{}
+								proto.Unmarshal(payload, incomingMessage)
+								inboundMessages := []*rwp.InboundMessage{incomingMessage}
+								if incomingMessage.FlowMessage != 2 { // ack
+									if incomingMessage.Command.ActivatePanel {
+										inboundMessages = append(inboundMessages, &rwp.InboundMessage{
+											Command: &rwp.Command{
+												ReportHWCavailability: true,
+											},
+										})
+									}
 
-								incoming <- inboundMessages
+									incoming <- inboundMessages
+								}
 							}
+						} else {
+							fmt.Println("Error: Payload", currentPayloadLength, "exceed limit")
+							break
 						}
 					}
 				}
@@ -297,6 +323,11 @@ func connectToSystem(systemIPAndPort string, incoming chan []*rwp.InboundMessage
 								})
 							}
 							incoming <- inboundMessages
+
+							asciiConvertedMessages := rwpASCIIreader.Parse(netDataStr)
+							if asciiConvertedMessages != nil {
+								incoming <- asciiConvertedMessages
+							}
 						}
 					}
 				}

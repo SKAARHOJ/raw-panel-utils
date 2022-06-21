@@ -350,13 +350,14 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 var PanelName = make(map[int]string)
 var PanelFaders = make(map[int][]uint32)
 
-func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage, invertCallAll bool, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseOutgoing *int, demoModeFaders *bool) {
+func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage, invertCallAll bool, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseOutgoing *int, demoModeFaders *bool, demoModeImgsOnly *bool) {
 
+	numberOfTextStrings := su.Qint(*demoModeImgsOnly, 0, len(HWCtextStrings))
 	HWCavailabilityMap := make(map[int]bool)
 
 	HWCcolor := make(map[int]int)
 	HWCdispIndex := make(map[int]int)
-	dispIndexCount := len(HWCtextStrings) + len(HWCgfxStrings)
+	dispIndexCount := numberOfTextStrings + len(HWCgfxStrings)
 
 	var lastTriggerTimeMU = &sync.Mutex{}
 	lastTriggerTime := time.Now()
@@ -380,7 +381,6 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 				lastTriggerTimeMU.Unlock()
 
 				if goAuto && *demoModeDelay != 0 { // Running the demo cycle:
-
 					activeHWCs := make([]uint32, 0)
 					if invertCallAll {
 						for k, isActive := range HWCavailabilityMap {
@@ -415,10 +415,10 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					}
 
 					var dispMsg []*rwp.InboundMessage
-					if autoDispIndex < len(HWCtextStrings) { // Texts:
+					if autoDispIndex < numberOfTextStrings { // Texts:
 						dispMsg = helpers.RawPanelASCIIstringsToInboundMessages([]string{HWCtextStrings[autoDispIndex]})
 					} else { // Images:
-						dispMsg = helpers.RawPanelASCIIstringsToInboundMessages(HWCgfxStrings[autoDispIndex-len(HWCtextStrings)])
+						dispMsg = helpers.RawPanelASCIIstringsToInboundMessages(HWCgfxStrings[autoDispIndex-numberOfTextStrings])
 					}
 
 					txt := &rwp.HWCText{}
@@ -583,10 +583,10 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 								HWCcolor[int(Event.HWCID)] = (HWCcolor[int(Event.HWCID)] + 15 + direction) % 15
 
 								var dispMsg []*rwp.InboundMessage
-								if HWCdispIndex[int(Event.HWCID)] < len(HWCtextStrings) { // Texts:
+								if HWCdispIndex[int(Event.HWCID)] < numberOfTextStrings { // Texts:
 									dispMsg = helpers.RawPanelASCIIstringsToInboundMessages([]string{HWCtextStrings[HWCdispIndex[int(Event.HWCID)]]})
 								} else { // Images:
-									dispMsg = helpers.RawPanelASCIIstringsToInboundMessages(HWCgfxStrings[HWCdispIndex[int(Event.HWCID)]-len(HWCtextStrings)])
+									dispMsg = helpers.RawPanelASCIIstringsToInboundMessages(HWCgfxStrings[HWCdispIndex[int(Event.HWCID)]-numberOfTextStrings])
 								}
 
 								txt := rwp.HWCText{}
@@ -647,10 +647,10 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 								HWCcolor[int(Event.HWCID)] = int(math.Abs(float64(HWCcolor[int(Event.HWCID)]+15+int(Event.Pulsed.Value)))) % 15
 
 								var dispMsg []*rwp.InboundMessage
-								if HWCdispIndex[int(Event.HWCID)] < len(HWCtextStrings) { // Texts:
+								if HWCdispIndex[int(Event.HWCID)] < numberOfTextStrings { // Texts:
 									dispMsg = helpers.RawPanelASCIIstringsToInboundMessages([]string{HWCtextStrings[HWCdispIndex[int(Event.HWCID)]]})
 								} else { // Images:
-									dispMsg = helpers.RawPanelASCIIstringsToInboundMessages(HWCgfxStrings[HWCdispIndex[int(Event.HWCID)]-len(HWCtextStrings)])
+									dispMsg = helpers.RawPanelASCIIstringsToInboundMessages(HWCgfxStrings[HWCdispIndex[int(Event.HWCID)]-numberOfTextStrings])
 								}
 
 								txt := rwp.HWCText{}
@@ -776,6 +776,7 @@ func main() {
 	autoInterval := flag.Int("autoInterval", 100, "Interval in ms for demo engine sending out content")
 	exclusiveHWClist := flag.String("exclusiveHWClist", "", "Comma separated list of HWC numbers to test exclusively")
 	demoModeDelay := flag.Int("demoModeDelay", 10, "The number of seconds before demo mode starts after having manually operated a panel. Zero will disable demo mode.")
+	demoModeImgsOnly := flag.Bool("demoModeImgsOnly", false, "If set, only images will be cycled to displays in demo mode")
 	demoModeFaders := flag.Bool("demoModeFaders", false, "Exercise motorized faders continuously in demo mode.")
 	analogProfiling := flag.Bool("analogProfiling", false, "If set, will track raw analog performance into CSV file and HTML pages in folder ColorDisplayButtonTest/")
 	cpuProfiling := flag.Int("cpuProfiling", -1, "If >= zero, will turn on that number of CPU cores (0-4) and track temperature into CSV file and HTML pages in folder ColorDisplayButtonTest/")
@@ -809,19 +810,19 @@ func main() {
 	startTicker()
 
 	for panelNum, argument := range arguments {
-		startTest(argument, binPanel, invertCallAll, panelNum+1, autoInterval, exclusiveHWClist, demoModeDelay, verboseO, verboseI, analogProfiling, cpuProfiling, brightness, fullPowerStartUp, demoModeFaders)
+		startTest(argument, binPanel, invertCallAll, panelNum+1, autoInterval, exclusiveHWClist, demoModeDelay, verboseO, verboseI, analogProfiling, cpuProfiling, brightness, fullPowerStartUp, demoModeFaders, demoModeImgsOnly)
 	}
 	select {}
 }
 
-func startTest(panelIPAndPort string, binPanel *bool, invertCallAll *bool, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseO *int, verboseI *int, analogProfiling *bool, cpuProfiling *int, brightness *int, fullPowerStartUp *bool, demoModeFaders *bool) {
+func startTest(panelIPAndPort string, binPanel *bool, invertCallAll *bool, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseO *int, verboseI *int, analogProfiling *bool, cpuProfiling *int, brightness *int, fullPowerStartUp *bool, demoModeFaders *bool, demoModeImgsOnly *bool) {
 
 	// Set up server:
 	incoming := make(chan []*rwp.InboundMessage, 100)
 	outgoing := make(chan []*rwp.OutboundMessage, 100)
 
 	go connectToPanel(panelIPAndPort, incoming, outgoing, *binPanel, panelNum, verboseI, analogProfiling, cpuProfiling, brightness, fullPowerStartUp)
-	go testManager(incoming, outgoing, *invertCallAll, panelNum, autoInterval, exclusiveHWClist, demoModeDelay, verboseO, demoModeFaders)
+	go testManager(incoming, outgoing, *invertCallAll, panelNum, autoInterval, exclusiveHWClist, demoModeDelay, verboseO, demoModeFaders, demoModeImgsOnly)
 }
 
 // Outputs a dot every second and line break after a minute. Great for logging activity under test
