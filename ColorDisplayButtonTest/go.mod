@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/disintegration/gift v1.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
