@@ -18,22 +18,24 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
-	"strconv"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
-	su "github.com/SKAARHOJ/ibeam-lib-utils"
 	helpers "github.com/SKAARHOJ/rawpanel-lib"
 	rwp "github.com/SKAARHOJ/rawpanel-lib/ibeam_rawpanel"
-	"github.com/subchen/go-xmldom"
 	"google.golang.org/protobuf/proto"
 
 	log "github.com/s00500/env_logger"
-	xml "github.com/subchen/go-xmldom"
 
 	topology "github.com/SKAARHOJ/rawpanel-lib/topology"
 )
+
+var lastState *wsMessage
+var lastStateMu sync.Mutex
 
 // Panel centric view:
 // Inbound TCP commands - from external system to SKAARHOJ panel
@@ -85,7 +87,7 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 							lines := helpers.InboundMessagesToRawPanelASCIIstrings(incomingMessages)
 
 							for _, line := range lines {
-								fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
+								//fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
 								c.Write([]byte(line + "\n"))
 							}
 						}
@@ -148,12 +150,17 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 
 func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage) {
 
-	//	panelInitialized := false
-	//HWCavailabilityMap := make(map[int]int)
+	var HWCavailabilityMapChanged bool
+	var HWCavailabilityMap = make(map[uint32]uint32)
+	var ReceivedTopology bool
+	var IsSleeping bool
+	var SendTopMutex sync.Mutex
 
 	topologyJSON := ""
 	topologySVG := ""
 	var topologyData topology.Topology
+
+	t := time.NewTicker(time.Millisecond * 500)
 
 	for {
 		select {
@@ -165,231 +172,121 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 			}
 
 			// Next, do some processing on it:
+			SendTopMutex.Lock()
 			for _, msg := range outboundMessages {
 
 				if msg.PanelTopology != nil {
 					if msg.PanelTopology.Json != "" {
+						ReceivedTopology = true
 						err := json.Unmarshal([]byte(msg.PanelTopology.Json), &topologyData)
 						if err != nil {
 							fmt.Println("Topology JSON parsing Error: ", err)
 						} else {
 							//fmt.Println("Received Topology JSON")
 							topologyJSON = msg.PanelTopology.Json
-							log.Println(log.Indent(topologyData))
+							//log.Println(log.Indent(topologyData))
 						}
 					}
 					if msg.PanelTopology.Svgbase != "" {
+						ReceivedTopology = true
 						topologySVG = msg.PanelTopology.Svgbase
 						//	fmt.Println("Received Topology SVG")
 					}
 				}
 
-				if topologyJSON != "" && topologySVG != "" {
-					generateCompositeSVG(topologyJSON, topologySVG)
-					return
+				if msg.PanelInfo != nil {
+					lastStateMu.Lock()
+					if msg.PanelInfo.Name != "" {
+						lastState.Title = msg.PanelInfo.Name
+					}
+					if msg.PanelInfo.Model != "" {
+						lastState.Model = msg.PanelInfo.Model
+					}
+					if msg.PanelInfo.Serial != "" {
+						lastState.Serial = msg.PanelInfo.Serial
+					}
+					lastState.Time = time.Now().String()
+					lastStateMu.Unlock()
+				}
+
+				if msg.SleepState != nil {
+					IsSleeping = msg.SleepState.IsSleeping
+				}
+
+				// Picking up availability information (map command)
+				if msg.HWCavailability != nil && !IsSleeping { // Only update the map internally if the panel is not asleep. Luckily the sleep indication will arrive before the updated map, so we can use this to prevent the map from being updated.
+					//log.Println(log.Indent(msg.HWCavailability))
+					for HWCid, MappedTo := range msg.HWCavailability {
+						HWCavailabilityMapChanged = true
+						HWCavailabilityMap[HWCid] = MappedTo
+					}
+				}
+
+				if msg.Events != nil {
+					for _, Event := range msg.Events {
+						eventMessage := &wsMessage{
+							PanelEvent: Event,
+						}
+						slice.Iter(func(w *wsclient) { w.msgToClient <- eventMessage })
+					}
 				}
 			}
-		}
-	}
-}
+			SendTopMutex.Unlock()
+		case <-t.C: // Send topology based on a timer so that we don't trigger it on every received map command for example. Rather, state for map and topology will be pooled together and forwarded every half second.
+			SendTopMutex.Lock()
+			if (ReceivedTopology || HWCavailabilityMapChanged) && (topologyJSON != "" && topologySVG != "") {
+				//fmt.Println("ReceivedTopology, HWCavailabilityMapChanged", ReceivedTopology, HWCavailabilityMapChanged)
+				ReceivedTopology = false
+				HWCavailabilityMapChanged = false
+				//log.Println(log.Indent(HWCavailabilityMap))
 
-func addFormatting(newHWc *xml.Node, id int) {
-	// There is some common conventional formatting regardless of rectangle / circle: Like fill and stroke color and stroke width.
-	newHWc.SetAttributeValue("fill", "#dddddd")
-	newHWc.SetAttributeValue("stroke", "#000")
-	newHWc.SetAttributeValue("stroke-width", "2")
-	newHWc.SetAttributeValue("id", "HWc"+strconv.Itoa(id)) // Also, lets add an id to the element! This is not mandatory, but you are likely to want this to program some interaction with the SVG
-}
+				svgIcon := topology.GenerateCompositeSVG(topologyJSON, topologySVG, HWCavailabilityMap)
 
-func addSubElFormatting(newHWc *xml.Node, subEl *topology.TopologyHWcTypeDefSubEl) {
+				regex := regexp.MustCompile(`id="HWc([0-9]+)"`)
+				svgIcon = regex.ReplaceAllString(svgIcon, fmt.Sprintf("id=\"SVG_HWc$1\" onclick=\"clickHWC(evt,$1)\""))
 
-	if subEl.Rx != 0 {
-		newHWc.SetAttributeValue("rx", strconv.Itoa(subEl.Rx))
-	}
-	if subEl.Ry != 0 {
-		newHWc.SetAttributeValue("ry", strconv.Itoa(subEl.Ry))
-	}
-	if subEl.Style != "" {
-		newHWc.SetAttributeValue("style", subEl.Style)
-	}
+				topOverviewTable := topology.GenerateTopologyOverviewTable(topologyJSON, HWCavailabilityMap)
+				topOverviewTable = regex.ReplaceAllString(topOverviewTable, fmt.Sprintf("id=\"Row_HWc$1\" onclick=\"clickHWC(event,$1)\""))
+				//fmt.Println(topOverviewTable)
 
-	// There is some common conventional formatting regardless of rectangle / circle: Like fill and stroke color and stroke width.
-	newHWc.SetAttributeValue("fill", "#cccccc")
-	newHWc.SetAttributeValue("stroke", "#666")
-	newHWc.SetAttributeValue("stroke-width", "1")
-}
-func generateCompositeSVG(topologyJSON string, topologySVG string) {
+				// Create a JSON object to marshal in a pretty format
+				var obj map[string]interface{}
+				json.Unmarshal([]byte(topologyJSON), &obj)
+				s, _ := json.MarshalIndent(obj, "", "  ")
+				topJson := string(s)
 
-	showLabels := true       // Will render text labels on the SVG icon file
-	showHWCID := true        // Will render HWC ID number on the SVG icon file
-	showType := false        // Will render the type id above each component (for development)
-	showDisplaySize := false // Will render the display sizes in pixels at every display (for development)
+				// Horrible, but functional processing of the JSON to insert some HTML to be able to highlight the HWCs
+				regex = regexp.MustCompile(`"id": ([0-9]+),`)
+				topJsonPartsBegin := strings.Split(topJson, "    {\n")
+				for i := range topJsonPartsBegin {
+					topJsonParts := strings.Split(topJsonPartsBegin[i], "\n    }")
 
-	// Parsing SVG file:
-	svgDoc, err := xmldom.ParseXML(topologySVG)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Reading JSON topology:
-	var topology topology.Topology
-	json.Unmarshal([]byte(topologyJSON), &topology)
-
-	topology.Verify()
-
-	for _, HWcDef := range topology.HWc {
-		typeDef := topology.TypeIndex[HWcDef.Type]
-
-		// Look for local type override and overlay it if it's there..:
-		// Across controllers, this is largely alternative disp{} pixel dimensions and some sub[] changes.
-		if HWcDef.TypeOverride != nil {
-			if HWcDef.TypeOverride.W > 0 {
-				typeDef.W = HWcDef.TypeOverride.W
-			}
-			if HWcDef.TypeOverride.H > 0 {
-				typeDef.H = HWcDef.TypeOverride.H
-			}
-			if HWcDef.TypeOverride.Out != "" {
-				typeDef.Out = HWcDef.TypeOverride.Out
-			}
-			if HWcDef.TypeOverride.In != "" {
-				typeDef.In = HWcDef.TypeOverride.In
-			}
-			if HWcDef.TypeOverride.Ext != "" {
-				typeDef.Ext = HWcDef.TypeOverride.Ext
-			}
-			if HWcDef.TypeOverride.Subidx > 0 {
-				typeDef.Subidx = HWcDef.TypeOverride.Subidx
-			}
-			if HWcDef.TypeOverride.Disp != nil {
-				typeDef.Disp = HWcDef.TypeOverride.Disp
-			}
-			if len(HWcDef.TypeOverride.Sub) > 0 {
-				typeDef.Sub = HWcDef.TypeOverride.Sub
-			}
-			//					su.Debug(HWcDef.TypeOverride)
-		}
-
-		// Main elements:
-		newHWc := svgDoc.Root.CreateNode(su.Qstr(typeDef.H > 0, "rect", "circle"))
-		if typeDef.H > 0 { // Rectangle
-			newHWc.SetAttributeValue("x", strconv.Itoa(HWcDef.X-typeDef.W/2)) // SVG elements have their reference point in upper left corner, so we subtract half the width from the center x-coordinate of the element
-			newHWc.SetAttributeValue("y", strconv.Itoa(HWcDef.Y-typeDef.H/2)) // SVG elements have their reference point in upper left corner, so we subtract half the height from the center y-coordinate of the element
-			newHWc.SetAttributeValue("width", strconv.Itoa(typeDef.W))
-			newHWc.SetAttributeValue("height", strconv.Itoa(typeDef.H))
-			newHWc.SetAttributeValue("rx", strconv.Itoa(10)) // Rounding corners for visual elegance
-			newHWc.SetAttributeValue("rx", strconv.Itoa(10)) // Rounding corners for visual elegance
-		} else { // Circle
-			newHWc.SetAttributeValue("cx", strconv.Itoa(HWcDef.X))
-			newHWc.SetAttributeValue("cy", strconv.Itoa(HWcDef.Y))
-			newHWc.SetAttributeValue("r", strconv.Itoa(typeDef.W/2)) // Radius is half the width
-		}
-		addFormatting(newHWc, int(HWcDef.Id))
-
-		// Sub elements:
-		if len(typeDef.Sub) > 0 {
-			for _, subEl := range typeDef.Sub {
-				if subEl.ObjType == "r" {
-					subElForHWc := svgDoc.Root.CreateNode("rect")
-					subElForHWc.SetAttributeValue("x", strconv.Itoa(HWcDef.X+subEl.X))
-					subElForHWc.SetAttributeValue("y", strconv.Itoa(HWcDef.Y+subEl.Y))
-					subElForHWc.SetAttributeValue("width", strconv.Itoa(subEl.W))
-					subElForHWc.SetAttributeValue("height", strconv.Itoa(subEl.H))
-					addSubElFormatting(subElForHWc, &subEl)
+					matches := regex.FindStringSubmatch(topJsonParts[0])
+					if matches != nil {
+						topJsonParts[0] = fmt.Sprintf(`<span id="Top_HWc%s" onclick="clickHWC(event,%s)">`, matches[1], matches[1]) + topJsonParts[0] + `</span>`
+					}
+					topJsonPartsBegin[i] = strings.Join(topJsonParts, "\n    }")
 				}
-				if subEl.ObjType == "c" {
-					subElForHWc := svgDoc.Root.CreateNode("circle")
-					subElForHWc.SetAttributeValue("cx", strconv.Itoa(HWcDef.X+subEl.X))
-					subElForHWc.SetAttributeValue("cy", strconv.Itoa(HWcDef.Y+subEl.Y))
-					subElForHWc.SetAttributeValue("r", strconv.Itoa(subEl.R))
-					addSubElFormatting(subElForHWc, &subEl)
-				}
+				topJson = strings.Join(topJsonPartsBegin, "    {\n")
+				//fmt.Println(topJson)
+
+				// Process it...
+				f, _ := os.Create("_topologySVGFullRender.svg")
+				defer f.Close()
+				f.WriteString(svgIcon)
+				f.Sync()
+
+				lastStateMu.Lock()
+				lastState.SvgIcon = svgIcon
+				lastState.TopologyTable = topOverviewTable
+				lastState.TopologyJSON = topJson
+				lastState.Time = time.Now().String()
+				slice.Iter(func(w *wsclient) { w.msgToClient <- lastState })
+				lastStateMu.Unlock()
 			}
-		}
-
-		// Text labels:
-		if showLabels {
-			sp := strings.Split(HWcDef.Txt, "|")
-			cnt := len(sp)
-			if cnt > 1 && len(sp[1]) > 0 {
-				cnt = 2
-			} else {
-				cnt = 1
-			}
-			for a := 0; a < cnt; a++ {
-				textElForHWC := svgDoc.Root.CreateNode("text")
-				textElForHWC.SetAttributeValue("x", strconv.Itoa(HWcDef.X))
-				textElForHWC.SetAttributeValue("y", strconv.Itoa(HWcDef.Y+33+a*40-(cnt*40/2)))
-				textElForHWC.SetAttributeValue("text-anchor", "middle")
-				textElForHWC.SetAttributeValue("fill", "#000")
-				textElForHWC.SetAttributeValue("font-weight", "bold")
-				textElForHWC.SetAttributeValue("font-size", "35")
-				textElForHWC.SetAttributeValue("font-family", "sans-serif")
-				textElForHWC.Text = sp[a]
-			}
-		}
-
-		if showType {
-			// If type number was printed as label, we will add a small text with the original label too:
-			textForTypeNumber := svgDoc.Root.CreateNode("text")
-			textForTypeNumber.SetAttributeValue("x", strconv.Itoa(HWcDef.X))
-			textForTypeNumber.SetAttributeValue("y", strconv.Itoa(HWcDef.Y-su.Qint(typeDef.H > 0, typeDef.H, typeDef.W)/2-2))
-			textForTypeNumber.SetAttributeValue("text-anchor", "middle")
-			textForTypeNumber.SetAttributeValue("fill", "#333")
-			textForTypeNumber.SetAttributeValue("font-size", "20")
-			textForTypeNumber.SetAttributeValue("font-family", "sans-serif")
-			textForTypeNumber.Text = "[TYPE=" + strconv.Itoa(int(HWcDef.Type)) + "]"
-		}
-
-		if showDisplaySize && typeDef.Disp != nil {
-			textForDisplaySize := svgDoc.Root.CreateNode("text")
-			dispLabelX := HWcDef.X
-			dispLabelY := HWcDef.Y - su.Qint(typeDef.H > 0, typeDef.H, typeDef.W)/2 - 2
-			if typeDef.Disp.Subidx >= 0 && len(typeDef.Sub) > typeDef.Disp.Subidx {
-				dispLabelX = HWcDef.X + typeDef.Sub[typeDef.Disp.Subidx].X + typeDef.Sub[typeDef.Disp.Subidx].W/2
-				dispLabelY = HWcDef.Y + typeDef.Sub[typeDef.Disp.Subidx].Y + typeDef.Sub[typeDef.Disp.Subidx].H/2
-			}
-
-			textForDisplaySize.SetAttributeValue("x", strconv.Itoa(dispLabelX))
-			textForDisplaySize.SetAttributeValue("y", strconv.Itoa(dispLabelY))
-			textForDisplaySize.SetAttributeValue("text-anchor", "middle")
-			textForDisplaySize.SetAttributeValue("fill", "#ccc")
-			textForDisplaySize.SetAttributeValue("font-size", "25")
-			textForDisplaySize.SetAttributeValue("font-family", "sans-serif")
-			textForDisplaySize.SetAttributeValue("stroke", "#333")
-			textForDisplaySize.SetAttributeValue("stroke-width", "6px")
-			textForDisplaySize.SetAttributeValue("paint-order", "stroke")
-
-			dispLabelSuffix := ""
-			if typeDef.Disp.Type != "" {
-				dispLabelSuffix = " " + typeDef.Disp.Type
-			}
-
-			textForDisplaySize.Text = strconv.Itoa(typeDef.Disp.W) + "x" + strconv.Itoa(typeDef.Disp.H) + dispLabelSuffix
-		}
-
-		if showHWCID {
-			numberForHWC := svgDoc.Root.CreateNode("text")
-			numberForHWC.SetAttributeValue("x", strconv.Itoa(HWcDef.X-su.Qint(typeDef.H > 0, typeDef.W/2-4, 0)))
-			numberForHWC.SetAttributeValue("y", strconv.Itoa(HWcDef.Y-su.Qint(typeDef.H > 0, typeDef.H, typeDef.W)/2+20))
-			if typeDef.H == 0 { // Circle: Center it...
-				numberForHWC.SetAttributeValue("text-anchor", "middle")
-			}
-			numberForHWC.SetAttributeValue("fill", "#000")
-			numberForHWC.SetAttributeValue("font-size", "20")
-			numberForHWC.SetAttributeValue("font-family", "sans-serif")
-			//numberForHWC.SetAttributeValue("stroke", "#dddddd")
-			//numberForHWC.SetAttributeValue("stroke-width", "6px")
-			//numberForHWC.SetAttributeValue("paint-order", "stroke")
-			numberForHWC.Text = strconv.Itoa(int(HWcDef.Id))
+			SendTopMutex.Unlock()
 		}
 	}
-
-	// Process it...
-	f, _ := os.Create("_topologySVGFullRender.svg")
-	defer f.Close()
-	f.WriteString(svgDoc.XMLPretty())
-	f.Sync()
 }
 
 func main() {
@@ -412,11 +309,29 @@ func main() {
 	fmt.Println("Welcome to Raw Panel Topology Extractor Made by Kasper Skaarhoj (c) 2021-2022")
 	fmt.Println("Ready to connect to panel on " + panelIPAndPort + "...\n")
 
+	lastStateMu.Lock()
+	lastState = &wsMessage{
+		Title:         "-",
+		Model:         "-",
+		Serial:        "-",
+		SvgIcon:       "-",
+		TopologyTable: "-",
+		Time:          time.Now().String(),
+	}
+	lastStateMu.Unlock()
+
 	// Set up server:
 	incoming := make(chan []*rwp.InboundMessage, 10)
 	outgoing := make(chan []*rwp.OutboundMessage, 10)
 
 	go connectToPanel(panelIPAndPort, incoming, outgoing, *binPanel)
+
+	// Start webserver:
+	fmt.Println("Starting server on :8080")
+	setupRoutes()
+	go http.ListenAndServe(":8080", nil)
+
+	slice = threadSafeSlice{}
 
 	getTopology(incoming, outgoing)
 }

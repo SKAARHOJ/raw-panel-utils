@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Topology Reader</title>
+    <script language="javascript" type="text/javascript">
+
+        var wsUri = "ws://127.0.0.1:8080/ws";
+
+        function init() {
+            setUpWebSocket();
+        }
+
+        function setUpWebSocket() {
+            websocket = new WebSocket(wsUri);
+            websocket.onopen = function (evt) { onOpen(evt) };
+            websocket.onclose = function (evt) { onClose(evt) };
+            websocket.onmessage = function (evt) { onMessage(evt) };
+            websocket.onerror = function (evt) { onError(evt) };
+        }
+
+        function onOpen(evt) {
+            logToScreen("CONNECTED");
+            doSend("SendAll");
+        }
+
+        function onClose(evt) {
+            logToScreen("DISCONNECTED");
+        }
+
+        function onMessage(evt) {
+            const obj = JSON.parse(evt.data);
+
+            if (obj.hasOwnProperty("Time")) {
+                document.getElementById("Time").innerHTML = obj["Time"]
+            }
+            if (obj.hasOwnProperty("Title")) {
+                document.getElementById("Title").innerHTML = obj["Title"]
+            }
+            if (obj.hasOwnProperty("Model")) {
+                document.getElementById("Model").innerHTML = obj["Model"]
+            }
+            if (obj.hasOwnProperty("Serial")) {
+                document.getElementById("Serial").innerHTML = obj["Serial"]
+            }
+            if (obj.hasOwnProperty("SvgIcon")) {
+                document.getElementById("SvgIcon").innerHTML = obj["SvgIcon"]
+            }
+            if (obj.hasOwnProperty("TopologyTable")) {
+                document.getElementById("TopologyTable").innerHTML = obj["TopologyTable"]
+            }
+            if (obj.hasOwnProperty("TopologyJSON")) {
+                document.getElementById("TopologyJSON").innerHTML = obj["TopologyJSON"]
+            }
+
+            if (obj.hasOwnProperty("PanelEvent")) {
+                tableCell = document.getElementById("HWc" + obj["PanelEvent"].HWCID + "_Events");
+                if (tableCell != null) {
+                    tableCell.classList.add('eventReceived');
+                    tableCell.innerHTML = JSON.stringify(obj["PanelEvent"]);
+                }
+            }
+
+            //websocket.close();
+            logToScreen('<span style="color: blue;">RESPONSE: ' + evt.data + '</span><br/>');
+        }
+
+        function onError(evt) {
+            logToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
+        }
+
+        function doSend(message) {
+            logToScreen("SENT: " + message);
+            websocket.send(message);
+        }
+
+        function logToScreen(message) {
+            var pre = document.createElement("pre");
+            pre.style.wordWrap = "break-word";
+            pre.innerHTML = message;
+            output = document.getElementById("Log");
+            output.appendChild(pre);
+        }
+
+        window.addEventListener("load", init, false);
+
+
+        // Selecting items on SVG:
+        var SelectedHWCs = [];
+        function clickHWC(e, HWCid) {
+            var shiftClick = e.shiftKey
+            e.preventDefault();
+
+            // Empty selection if shift is held down:
+            if (!shiftClick) {
+                clearSelection(SelectedHWCs);
+                SelectedHWCs = [];
+            }
+
+            if (!isElementInArray(SelectedHWCs, HWCid)) {
+                if (!shiftClick) {
+                    SelectedHWCs = [HWCid];
+                } else {
+                    SelectedHWCs[SelectedHWCs.length] = HWCid;
+                }
+
+                // SVG element paint:
+                objRef = document.getElementById("SVG_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.setAttribute('fill', '#eac720');
+                }
+
+                // HTML table row paint:
+                objRef = document.getElementById("Row_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.classList.add('highlight');
+                }
+
+                // Topology JSON element paint:
+                objRef = document.getElementById("Top_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.classList.add('highlight');
+                }
+            } else {
+                if (!shiftClick) {
+                    SelectedHWCs = [];
+                } else {
+                    removeElementFromArray(SelectedHWCs, HWCid);
+                }
+
+                // SVG element paint:
+                objRef = document.getElementById("SVG_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.setAttribute('fill', '#dddddd');
+                }
+
+                // HTML table row paint:
+                objRef = document.getElementById("Row_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.classList.remove('highlight');
+                }
+
+                // Topology JSON element paint:
+                objRef = document.getElementById("Top_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.classList.remove('highlight');
+                }
+            }
+        }
+        function clearSelection(selection) {
+            for (var i = 0; i < selection.length; i++) {
+                HWCid = selection[i];
+
+                // SVG element paint:
+                objRef = document.getElementById("SVG_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.setAttribute('fill', '#dddddd');
+                }
+
+                // HTML table row paint:
+                objRef = document.getElementById("Row_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.classList.remove('highlight');
+                }
+
+                // Topology JSON element paint:
+                objRef = document.getElementById("Top_HWc" + HWCid);
+                if (objRef != null) {
+                    objRef.classList.remove('highlight');
+                }
+            }
+        }
+        function removeElementFromArray(arr, elementMatch) {
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i] == elementMatch) {
+                    arr.remove(i)
+                }
+            }
+            return arr
+        }
+        function isElementInArray(arr, elementMatch) {
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i] == elementMatch) {
+                    return true
+                }
+            }
+            return false
+        }
+        // Array Remove - By John Resig (MIT Licensed)
+        Array.prototype.remove = function (from, to) {
+            var rest = this.slice((to || from) + 1 || this.length);
+            this.length = from < 0 ? this.length + from : from;
+            return this.push.apply(this, rest);
+        };
+    </script>
+    <style>
+        body {
+            background-color: powderblue;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #Log {
+            background-color: gray;
+            padding: 10px 10px 10px 10px;
+        }
+
+        #SvgIcon {}
+
+        table td {
+            padding-left: 5px;
+            padding-right: 5px;
+            background-color: #dddddd;
+        }
+
+        table tr.header td {
+            background-color: #cccccc;
+            font-weight: bold;
+        }
+
+        table tr.highlight td {
+            background-color: #eac720;
+        }
+
+        span.highlight {
+            background-color: #eac720;
+        }
+
+        table tr.mappedOut td {
+            color: #999999;
+            font-style: italic;
+        }
+
+        td.eventReceived {
+            color: red;
+        }
+
+        div#SvgIcon {
+            text-align: center;
+            max-width: 1000px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Panel Topology Explorer</h2>
+
+    <p>Updated: <span id="Time"></span></p>
+    <h3>Title: <span id="Title"></span></h3>
+    <h3>Model: <span id="Model"></span></h3>
+    <h3>Serial: <span id="Serial"></span></h3>
+    <h3>Reference SVG Rendering:</h3>
+    <div id="SvgIcon"></div>
+
+    <h3>Topology Summary:</h3>
+    <div id="TopologyTable"></div>
+
+    <h3>Topology JSON:</h3>
+    <pre id="TopologyJSON"></pre>
+
+    <h3>Log:</h3>
+    <div id="Log"></div>
+</body>
+
+</html>
