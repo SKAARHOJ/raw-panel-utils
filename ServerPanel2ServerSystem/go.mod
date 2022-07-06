@@ -1,4 +1,4 @@
-module ColorDisplayButtonTest
+module ServerPanel2ServerSystem
 
 go 1.18
 
