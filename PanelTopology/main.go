@@ -306,8 +306,9 @@ func main() {
 	panelIPAndPort := string(arguments[0])
 
 	// Welcome message!
-	fmt.Println("Welcome to Raw Panel Topology Extractor Made by Kasper Skaarhoj (c) 2021-2022")
-	fmt.Println("Ready to connect to panel on " + panelIPAndPort + "...\n")
+	fmt.Println("Welcome to Raw Panel Topology Explorer made by Kasper Skaarhoj (c) 2021-2022")
+	fmt.Println("Open a Web Browser on localhost:8080 to explore the topology interactively.")
+	fmt.Println()
 
 	lastStateMu.Lock()
 	lastState = &wsMessage{
