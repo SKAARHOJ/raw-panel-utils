@@ -34,7 +34,7 @@ import (
 	topology "github.com/SKAARHOJ/rawpanel-lib/topology"
 )
 
-var lastState *wsMessage
+var lastState *wsToClient
 var lastStateMu sync.Mutex
 
 // Panel centric view:
@@ -87,7 +87,7 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 							lines := helpers.InboundMessagesToRawPanelASCIIstrings(incomingMessages)
 
 							for _, line := range lines {
-								//fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
+								fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
 								c.Write([]byte(line + "\n"))
 							}
 						}
@@ -148,6 +148,8 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 	}
 }
 
+var TopologyData = &topology.Topology{}
+
 func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage) {
 
 	var HWCavailabilityMapChanged bool
@@ -158,7 +160,6 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 
 	topologyJSON := ""
 	topologySVG := ""
-	var topologyData topology.Topology
 
 	t := time.NewTicker(time.Millisecond * 500)
 
@@ -178,7 +179,7 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 				if msg.PanelTopology != nil {
 					if msg.PanelTopology.Json != "" {
 						ReceivedTopology = true
-						err := json.Unmarshal([]byte(msg.PanelTopology.Json), &topologyData)
+						err := json.Unmarshal([]byte(msg.PanelTopology.Json), TopologyData)
 						if err != nil {
 							fmt.Println("Topology JSON parsing Error: ", err)
 						} else {
@@ -205,7 +206,7 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					if msg.PanelInfo.Serial != "" {
 						lastState.Serial = msg.PanelInfo.Serial
 					}
-					lastState.Time = time.Now().String()
+					lastState.Time = getTimeString()
 					lastStateMu.Unlock()
 				}
 
@@ -224,10 +225,13 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 
 				if msg.Events != nil {
 					for _, Event := range msg.Events {
-						eventMessage := &wsMessage{
+						eventMessage := &wsToClient{
 							PanelEvent: Event,
+							Time:       getTimeString(),
 						}
-						slice.Iter(func(w *wsclient) { w.msgToClient <- eventMessage })
+						wsslice.Iter(func(w *wsclient) { w.msgToClient <- eventMessage })
+
+						eventPlot(Event)
 					}
 				}
 			}
@@ -245,7 +249,7 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 				regex := regexp.MustCompile(`id="HWc([0-9]+)"`)
 				svgIcon = regex.ReplaceAllString(svgIcon, fmt.Sprintf("id=\"SVG_HWc$1\" onclick=\"clickHWC(evt,$1)\""))
 
-				topOverviewTable := topology.GenerateTopologyOverviewTable(topologyJSON, HWCavailabilityMap)
+				topOverviewTable := GenerateTopologyOverviewTable(topologyJSON, HWCavailabilityMap)
 				topOverviewTable = regex.ReplaceAllString(topOverviewTable, fmt.Sprintf("id=\"Row_HWc$1\" onclick=\"clickHWC(event,$1)\""))
 				//fmt.Println(topOverviewTable)
 
@@ -257,7 +261,7 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 
 				// Horrible, but functional processing of the JSON to insert some HTML to be able to highlight the HWCs
 				regex = regexp.MustCompile(`"id": ([0-9]+),`)
-				topJsonPartsBegin := strings.Split(topJson, "    {\n")
+				topJsonPartsBegin := strings.Split(topJson, "\n    {\n")
 				for i := range topJsonPartsBegin {
 					topJsonParts := strings.Split(topJsonPartsBegin[i], "\n    }")
 
@@ -267,7 +271,7 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					}
 					topJsonPartsBegin[i] = strings.Join(topJsonParts, "\n    }")
 				}
-				topJson = strings.Join(topJsonPartsBegin, "    {\n")
+				topJson = strings.Join(topJsonPartsBegin, "\n    {\n")
 				//fmt.Println(topJson)
 
 				// Process it...
@@ -280,14 +284,16 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 				lastState.SvgIcon = svgIcon
 				lastState.TopologyTable = topOverviewTable
 				lastState.TopologyJSON = topJson
-				lastState.Time = time.Now().String()
-				slice.Iter(func(w *wsclient) { w.msgToClient <- lastState })
+				lastState.Time = getTimeString()
+				wsslice.Iter(func(w *wsclient) { w.msgToClient <- lastState })
 				lastStateMu.Unlock()
 			}
 			SendTopMutex.Unlock()
 		}
 	}
 }
+
+var incoming chan []*rwp.InboundMessage
 
 func main() {
 
@@ -311,7 +317,7 @@ func main() {
 	fmt.Println()
 
 	lastStateMu.Lock()
-	lastState = &wsMessage{
+	lastState = &wsToClient{
 		Title:         "-",
 		Model:         "-",
 		Serial:        "-",
@@ -322,7 +328,7 @@ func main() {
 	lastStateMu.Unlock()
 
 	// Set up server:
-	incoming := make(chan []*rwp.InboundMessage, 10)
+	incoming = make(chan []*rwp.InboundMessage, 10)
 	outgoing := make(chan []*rwp.OutboundMessage, 10)
 
 	go connectToPanel(panelIPAndPort, incoming, outgoing, *binPanel)
@@ -332,7 +338,7 @@ func main() {
 	setupRoutes()
 	go http.ListenAndServe(":8080", nil)
 
-	slice = threadSafeSlice{}
+	wsslice = threadSafeSlice{}
 
 	getTopology(incoming, outgoing)
 }

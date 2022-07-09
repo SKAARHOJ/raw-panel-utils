@@ -2,18 +2,21 @@ package main
 
 import (
 	"embed"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 
+	helpers "github.com/SKAARHOJ/rawpanel-lib"
 	rwp "github.com/SKAARHOJ/rawpanel-lib/ibeam_rawpanel"
 	"github.com/gorilla/websocket"
 	log "github.com/s00500/env_logger"
+	"google.golang.org/protobuf/proto"
 )
 
-type wsMessage struct {
+type wsToClient struct {
 	Title         string `json:",omitempty"`
 	Model         string `json:",omitempty"`
 	Serial        string `json:",omitempty"`
@@ -21,12 +24,24 @@ type wsMessage struct {
 	TopologyTable string `json:",omitempty"`
 	TopologyJSON  string `json:",omitempty"`
 	Time          string `json:",omitempty"`
+	ControlBlock  string `json:",omitempty"`
 
 	PanelEvent *rwp.HWCEvent `json:",omitempty"`
+	RWPState   *rwp.HWCState `json:",omitempty"`
+
+	RWPASCIIToPanel    string `json:",omitempty"`
+	RWPProtobufToPanel string `json:",omitempty"`
+	RWPJSONToPanel     string `json:",omitempty"`
+}
+
+type wsFromClient struct {
+	RWPState             *rwp.HWCState `json:",omitempty"`
+	RWPStateAscii        string        `json:",omitempty"`
+	RequestControlForHWC int           `json:",omitempty"`
 }
 
 type wsclient struct {
-	msgToClient chan *wsMessage
+	msgToClient chan *wsToClient
 	quit        chan bool
 }
 
@@ -36,23 +51,23 @@ type threadSafeSlice struct {
 }
 
 func (slice *threadSafeSlice) Push(w *wsclient) {
-	slice.Lock()
-	defer slice.Unlock()
-	slice.wsclients = append(slice.wsclients, w)
+	wsslice.Lock()
+	defer wsslice.Unlock()
+	wsslice.wsclients = append(wsslice.wsclients, w)
 }
 
 func (slice *threadSafeSlice) Iter(routine func(*wsclient)) {
-	slice.Lock()
-	defer slice.Unlock()
-	for _, wsclient := range slice.wsclients {
+	wsslice.Lock()
+	defer wsslice.Unlock()
+	for _, wsclient := range wsslice.wsclients {
 		routine(wsclient)
 	}
 }
 
-var slice threadSafeSlice
+var wsslice threadSafeSlice
 
 func (w *wsclient) Start(ws *websocket.Conn) {
-	w.msgToClient = make(chan *wsMessage, 10) // some buffer size to avoid blocking
+	w.msgToClient = make(chan *wsToClient, 10) // some buffer size to avoid blocking
 	go func() {
 		for {
 			select {
@@ -89,7 +104,7 @@ func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	ww := &wsclient{}
 	ww.Start(ws)
-	slice.Push(ww)
+	wsslice.Push(ww)
 
 	// listen indefinitely for new messages coming
 	// through on our WebSocket connection
@@ -113,10 +128,65 @@ func reader(conn *websocket.Conn) {
 		switch string(p) {
 		case "SendAll":
 			lastStateMu.Lock()
-			slice.Iter(func(w *wsclient) { w.msgToClient <- lastState })
+			wsslice.Iter(func(w *wsclient) { w.msgToClient <- lastState })
 			lastStateMu.Unlock()
 		default:
-			log.Println("Received from websocket: ", string(p))
+			wsFromClient := &wsFromClient{}
+			err := json.Unmarshal(p, wsFromClient)
+			log.Should(err)
+			//log.Println("Received from websocket: ", log.Indent(wsFromClient))
+
+			if wsFromClient.RequestControlForHWC > 0 {
+				wsToClient := &wsToClient{
+					RWPState: &rwp.HWCState{},
+				}
+				wsslice.Iter(func(w *wsclient) { w.msgToClient <- wsToClient })
+			}
+
+			if wsFromClient.RWPState != nil {
+				log.Println("Received State Change from Client: ", log.Indent(wsFromClient.RWPState))
+
+				/*
+					// If empty HWCMode structs are removed, we won't see triggers like "Off".
+					if proto.Equal(wsFromClient.RWPState.HWCMode, &rwp.HWCMode{}) {
+						wsFromClient.RWPState.HWCMode = nil
+					} */
+				if proto.Equal(wsFromClient.RWPState.HWCColor, &rwp.HWCColor{}) {
+					wsFromClient.RWPState.HWCColor = nil
+				}
+				if proto.Equal(wsFromClient.RWPState.HWCExtended, &rwp.HWCExtended{}) {
+					wsFromClient.RWPState.HWCExtended = nil
+				}
+				if proto.Equal(wsFromClient.RWPState.HWCText, &rwp.HWCText{}) {
+					wsFromClient.RWPState.HWCText = nil
+				}
+
+				incomingMessages := []*rwp.InboundMessage{
+					&rwp.InboundMessage{
+						States: []*rwp.HWCState{
+							wsFromClient.RWPState,
+						},
+					},
+				}
+
+				stateAsJsonString, _ := json.Marshal(wsFromClient.RWPState)
+
+				pbdata, err := proto.Marshal(incomingMessages[0])
+				log.Should(err)
+				header := make([]byte, 4)                                  // Create a 4-bytes header
+				binary.LittleEndian.PutUint32(header, uint32(len(pbdata))) // Fill it in
+				pbdata = append(header, pbdata...)
+
+				wsslice.Iter(func(w *wsclient) {
+					w.msgToClient <- &wsToClient{
+						RWPASCIIToPanel:    strings.Join(helpers.InboundMessagesToRawPanelASCIIstrings(incomingMessages), "\n"),
+						RWPJSONToPanel:     string(stateAsJsonString),
+						RWPProtobufToPanel: prettyHexPrint(pbdata),
+					}
+				})
+
+				incoming <- incomingMessages
+			}
 		}
 	}
 }
