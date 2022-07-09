@@ -58,6 +58,39 @@
             if (obj.hasOwnProperty("Serial")) {
                 document.getElementById("Serial").innerHTML = obj["Serial"]
             }
+
+            if (obj.hasOwnProperty("SoftwareVersion")) {
+                document.getElementById("SoftwareVersion").innerHTML = obj["SoftwareVersion"]
+            }
+            if (obj.hasOwnProperty("Platform")) {
+                document.getElementById("Platform").innerHTML = obj["Platform"]
+            }
+            if (obj.hasOwnProperty("BluePillReady")) {
+                document.getElementById("BluePillReady").innerHTML = obj["BluePillReady"]
+            }
+            if (obj.hasOwnProperty("MaxClients")) {
+                document.getElementById("MaxClients").innerHTML = obj["MaxClients"]
+            }
+            if (obj.hasOwnProperty("LockedToIPs")) {
+                document.getElementById("LockedToIPs").innerHTML = obj["LockedToIPs"]
+            }
+
+            if (obj.hasOwnProperty("Connections")) {
+                document.getElementById("Connections").innerHTML = obj["Connections"]
+            }
+            if (obj.hasOwnProperty("BootsCount")) {
+                document.getElementById("BootsCount").innerHTML = obj["BootsCount"]
+            }
+            if (obj.hasOwnProperty("TotalUptime")) {
+                document.getElementById("TotalUptime").innerHTML = Math.round(obj["TotalUptime"]/60)+" hours";
+            }
+            if (obj.hasOwnProperty("SessionUptime")) {
+                document.getElementById("SessionUptime").innerHTML = obj["SessionUptime"]+" min";
+            }
+            if (obj.hasOwnProperty("ScreenSaveOnTime")) {
+                document.getElementById("ScreenSaveOnTime").innerHTML = Math.round(obj["ScreenSaveOnTime"]/60) + " hours";
+            }
+
             if (obj.hasOwnProperty("ControlBlock")) {
                 document.getElementById("Control").innerHTML = obj["ControlBlock"]
             }
@@ -426,7 +459,7 @@
                     output += '<input type="button" style="font-size: 11px; padding: 1 1 1 1; width: 60px; background-color: ' + ColorArray[i][1] + '" value="' + ColorArray[i][0] + '" onclick="initColorIndex(); RWPState[\'HWCColor\'][\'ColorIndex\'][\'Index\']=' + ColorArray[i][2] + '; sendColor(); drawControlBlock(); return false;"' + (RWPState["HWCColor"]["ColorIndex"] != null && RWPState["HWCColor"]["ColorIndex"]["Index"] == ColorArray[i][2] ? ' class="selected"' : '') + '> ';
                 }
 
-                output += '<br/>RGB code: <input id="ColorRGBvalue" type="text" value="' + printColor() + '" onchange="convertColorInput(this.value); return false;"><span type="button" id="colorPicker"><b>Pick...</b></span>';
+                output += '<br/>RGB code: <input id="ColorRGBvalue" type="text" value="' + printColor() + '" onchange="convertColorInput(this.value); return false;"><span type="button" id="colorPicker"> <b>[Pick]</b></span>';
 
                 // Extended value:
                 output += '<hr/>';
@@ -465,7 +498,7 @@
 
             document.getElementById("Control").innerHTML = output;
 
-            var picker = new Picker({ parent: document.querySelector('#colorPicker'), color: lastColorSelected, alpha: false, editor: false});
+            var picker = new Picker({ parent: document.querySelector('#colorPicker'), color: lastColorSelected, alpha: false, editor: false });
             picker.onChange = function (color) {
                 lastColorSelected = color.hex.substring(0, 7)
                 convertColorInput(lastColorSelected);
@@ -474,6 +507,17 @@
 
         }
         var lastColorSelected = "#000000";
+
+
+        function action_clearAll() {
+            doSend(`{"Command": {"ClearAll":true}}`);
+        }
+        function action_clearLEDs() {
+            doSend(`{"Command": {"ClearLEDs":true}}`);
+        }
+        function action_clearDisplays() {
+            doSend(`{"Command": {"ClearDisplays":true}}`);
+        }
     </script>
     <script src="https://unpkg.com/vanilla-picker@2"></script>
     <style>
@@ -570,6 +614,15 @@
         svg#ctrlimg {
             max-height: 1000px;
         }
+
+        table#topTable {
+            border: 1px solid black;
+        }
+
+        table#topTable td {
+            padding-left: 5px;
+            padding-right: 15px;
+        }
     </style>
 </head>
 
@@ -580,20 +633,63 @@
 
     <h3>Panel Info:</h3>
     <div class="container">
-        <table border="1">
+        <table border="0" cellpadding="0" cellspacing="0" id="topTable">
             <tr>
-                <td>Title:</td>
+                <td><b>Title:</b></td>
                 <td><span id="Title"></span></td>
+
+                <td><b>S/W version:</b></td>
+                <td><span id="SoftwareVersion"></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
+
+                <td><b>BootsCount:</b></td>
+                <td><span id="BootsCount"></span></td>
             </tr>
             <tr>
-                <td>Model:</td>
+                <td><b>Model:</b></td>
                 <td><span id="Model"></span></td>
+
+                <td><b>Platform:</b></td>
+                <td><span id="Platform"></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
+
+                <td><b>TotalUptime:</b></td>
+                <td><span id="TotalUptime"></span></td>
             </tr>
             <tr>
-                <td>Serial:</td>
+                <td><b>Serial:</b></td>
                 <td><span id="Serial"></span></td>
+
+                <td><b>Blue Pill Ready:</b></td>
+                <td><span id="BluePillReady"></span></td>
+
+                <td><b>Connections:</b></td>
+                <td><span id="Connections"></span></td>
+
+                <td><b>SessionUptime:</b></td>
+                <td><span id="SessionUptime"></span></td>
+            </tr>
+            <tr>
+                <td><b>Max Clients:</b></td>
+                <td><span id="MaxClients"></span></td>
+
+                <td><b>Locked to IPs:</b></td>
+                <td><span id="LockedToIPs"></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
+
+                <td><b>ScreenSaveOnTime:</b></td>
+                <td><span id="ScreenSaveOnTime"></span></td>
             </tr>
         </table>
+        <input type="button" value="Clear All" onclick="action_clearAll(); return false;"> 
+        <input type="button" value="Clear Disp" onclick="action_clearDisplays(); return false;"> 
+        <input type="button" value="Clear LEDs" onclick="action_clearLEDs(); return false;"> 
     </div>
     <p class="tip">Various panel information.</p>
 

@@ -60,6 +60,12 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 						SendPanelInfo:         true,
 						SendPanelTopology:     true,
 						ReportHWCavailability: true,
+						GetConnections:        true,
+						GetRunTimeStats:       true,
+						//PublishSystemStat:     5000,
+						SetHeartBeatTimer: &rwp.HeartBeatTimer{
+							Value: 3000,
+						},
 					},
 				},
 			}
@@ -207,12 +213,49 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					if msg.PanelInfo.Serial != "" {
 						lastState.Serial = msg.PanelInfo.Serial
 					}
+					if msg.PanelInfo.SoftwareVersion != "" {
+						lastState.SoftwareVersion = msg.PanelInfo.SoftwareVersion
+					}
+					if msg.PanelInfo.Platform != "" {
+						lastState.Platform = msg.PanelInfo.Platform
+					}
+					if msg.PanelInfo.BluePillReady {
+						lastState.BluePillReady = "Yes"
+					}
+					if msg.PanelInfo.MaxClients != 0 {
+						lastState.MaxClients = msg.PanelInfo.MaxClients
+					}
+					if len(msg.PanelInfo.LockedToIPs) != 0 {
+						lastState.LockedToIPs = strings.Join(msg.PanelInfo.LockedToIPs, ";")
+					}
+
 					lastState.Time = getTimeString()
 					lastStateMu.Unlock()
 				}
 
-				if msg.SleepState != nil {
-					IsSleeping = msg.SleepState.IsSleeping
+				if msg.FlowMessage == 1 { // Ping:
+					incoming <- []*rwp.InboundMessage{
+						&rwp.InboundMessage{
+							FlowMessage: 2,
+						},
+					}
+				}
+				if msg.Connections != nil {
+					lastState.Connections = strings.Join(msg.Connections.Connection, ";")
+				}
+				if msg.RunTimeStats != nil {
+					if msg.RunTimeStats.BootsCount > 0 {
+						lastState.BootsCount = msg.RunTimeStats.BootsCount
+					}
+					if msg.RunTimeStats.TotalUptime > 0 {
+						lastState.TotalUptime = msg.RunTimeStats.TotalUptime
+					}
+					if msg.RunTimeStats.SessionUptime > 0 {
+						lastState.SessionUptime = msg.RunTimeStats.SessionUptime
+					}
+					if msg.RunTimeStats.ScreenSaveOnTime > 0 {
+						lastState.ScreenSaveOnTime = msg.RunTimeStats.ScreenSaveOnTime
+					}
 				}
 
 				// Picking up availability information (map command)

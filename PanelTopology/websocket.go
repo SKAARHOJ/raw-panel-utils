@@ -16,9 +16,20 @@ import (
 )
 
 type wsToClient struct {
-	Title         string `json:",omitempty"`
-	Model         string `json:",omitempty"`
-	Serial        string `json:",omitempty"`
+	Title            string `json:",omitempty"`
+	Model            string `json:",omitempty"`
+	Serial           string `json:",omitempty"`
+	SoftwareVersion  string `json:",omitempty"`
+	Platform         string `json:",omitempty"`
+	BluePillReady    string `json:",omitempty"`
+	MaxClients       uint32 `json:",omitempty"`
+	LockedToIPs      string `json:",omitempty"`
+	Connections      string `json:",omitempty"`
+	BootsCount       uint32 `json:",omitempty"`
+	TotalUptime      uint32 `json:",omitempty"`
+	SessionUptime    uint32 `json:",omitempty"`
+	ScreenSaveOnTime uint32 `json:",omitempty"`
+
 	SvgIcon       string `json:",omitempty"`
 	TopologyTable string `json:",omitempty"`
 	TopologyJSON  string `json:",omitempty"`
@@ -35,8 +46,9 @@ type wsToClient struct {
 
 type wsFromClient struct {
 	RWPState             *rwp.HWCState `json:",omitempty"`
-	RWPStateAscii        string        `json:",omitempty"`
 	RequestControlForHWC int           `json:",omitempty"`
+
+	Command *rwp.Command `json:",omitempty"`
 
 	Image_HWCIDs []int  `json:",omitempty"`
 	ImageMode    string `json:",omitempty"`
@@ -146,8 +158,17 @@ func reader(conn *websocket.Conn) {
 				wsslice.Iter(func(w *wsclient) { w.msgToClient <- wsToClient })
 			}
 
+			if wsFromClient.Command != nil {
+				incomingMessages := []*rwp.InboundMessage{
+					&rwp.InboundMessage{
+						Command: wsFromClient.Command,
+					},
+				}
+				incoming <- incomingMessages
+			}
+
 			if wsFromClient.RWPState != nil {
-				log.Println("Received State Change from Client: ", log.Indent(wsFromClient.RWPState))
+				//log.Println("Received State Change from Client: ", log.Indent(wsFromClient.RWPState))
 
 				/*
 					// If empty HWCMode structs are removed, we won't see triggers like "Off".
