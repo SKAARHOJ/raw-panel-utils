@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -38,6 +37,10 @@ type wsFromClient struct {
 	RWPState             *rwp.HWCState `json:",omitempty"`
 	RWPStateAscii        string        `json:",omitempty"`
 	RequestControlForHWC int           `json:",omitempty"`
+
+	Image_HWCIDs []int  `json:",omitempty"`
+	ImageMode    string `json:",omitempty"`
+	ImageData    []byte `json:",omitempty"`
 }
 
 type wsclient struct {
@@ -187,6 +190,72 @@ func reader(conn *websocket.Conn) {
 
 				incoming <- incomingMessages
 			}
+
+			if wsFromClient.ImageMode != "" {
+				incomingMessages := []*rwp.InboundMessage{
+					&rwp.InboundMessage{
+						States: []*rwp.HWCState{},
+					},
+				}
+
+				for _, HWCID := range wsFromClient.Image_HWCIDs {
+					dispInfo := getDisplay(uint32(HWCID))
+					if dispInfo != nil && dispInfo.Type != "text" {
+
+						//file, err := os.ReadFile("RGB-64x32.png")
+						file, err := createTestImage(dispInfo.W, dispInfo.H, wsFromClient.ImageMode)
+						log.Must(err)
+
+						if len(wsFromClient.ImageData) > 0 {
+							file = wsFromClient.ImageData
+						}
+
+						// Custom WxH:
+						width := dispInfo.W
+						height := dispInfo.H
+
+						// Specific scaling
+						scalingValue := rwp.HWCGfxConverter_STRETCH
+
+						// Specific encoding
+						encodingValue := rwp.HWCGfxConverter_ImageTypeE(0)
+						switch wsFromClient.ImageMode {
+						case "color":
+							encodingValue = rwp.HWCGfxConverter_RGB16bit
+						case "gray":
+							encodingValue = rwp.HWCGfxConverter_Gray4bit
+						}
+
+						state := &rwp.HWCState{
+							HWCIDs: []uint32{uint32(HWCID)},
+							HWCGfxConverter: &rwp.HWCGfxConverter{
+								W:         uint32(width),
+								H:         uint32(height),
+								ImageType: encodingValue,
+								Scaling:   scalingValue,
+								ImageData: file,
+							},
+						}
+
+						// log.Println(log.Indent(state))
+						helpers.StateConverter(state)
+
+						incomingMessages[0].States = append(incomingMessages[0].States, state)
+
+						if len(wsFromClient.Image_HWCIDs) == 1 {
+							stateAsJsonString, _ := json.Marshal(state)
+							wsslice.Iter(func(w *wsclient) {
+								w.msgToClient <- &wsToClient{
+									RWPASCIIToPanel:    strings.Join(helpers.InboundMessagesToRawPanelASCIIstrings(incomingMessages), "\n"),
+									RWPJSONToPanel:     string(stateAsJsonString),
+									RWPProtobufToPanel: "(not rendered)",
+								}
+							})
+						}
+					}
+				}
+				incoming <- incomingMessages
+			}
 		}
 	}
 }
@@ -194,15 +263,4 @@ func reader(conn *websocket.Conn) {
 func setupRoutes() {
 	http.HandleFunc("/", homePage)
 	http.HandleFunc("/ws", wsEndpoint)
-}
-
-//go:embed resources
-var embeddedFS embed.FS
-
-// Read contents from ordinary or embedded file
-func ReadResourceFile(fileName string) []byte {
-	fileName = strings.ReplaceAll(fileName, "\\", "/")
-	byteValue, err := embeddedFS.ReadFile(fileName)
-	log.Should(err)
-	return byteValue
 }

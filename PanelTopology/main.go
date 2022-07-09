@@ -87,7 +87,7 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 							lines := helpers.InboundMessagesToRawPanelASCIIstrings(incomingMessages)
 
 							for _, line := range lines {
-								fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
+								//fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
 								c.Write([]byte(line + "\n"))
 							}
 						}

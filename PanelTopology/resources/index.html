@@ -77,7 +77,7 @@
                     tableCell.classList.add('eventReceived');
                     tableCell.innerHTML = JSON.stringify(obj["PanelEvent"]);
                 }
-                
+
                 objRef = document.getElementById("SVG_HWc" + obj["PanelEvent"].HWCID);
                 if (objRef != null) {
                     objRef.setAttribute('stroke', 'red');
@@ -258,7 +258,7 @@
             }
 
             if (!RWPState.hasOwnProperty("HWCText")) {
-                RWPState["HWCText"] = {"Formatting": 7}
+                RWPState["HWCText"] = { "Formatting": 7 }
             }
         }
 
@@ -291,11 +291,32 @@
             RWPState["HWCIDs"] = SelectedHWCs;
             doSend(JSON.stringify({ "RWPState": { "HWCIDs": RWPState["HWCIDs"], "HWCExtended": RWPState["HWCExtended"] } }));
         }
-        
+
         // Sending only Text:
         function sendText() {
             RWPState["HWCIDs"] = SelectedHWCs;
             doSend(JSON.stringify({ "RWPState": { "HWCIDs": RWPState["HWCIDs"], "HWCText": RWPState["HWCText"] } }));
+        }
+
+        // Sending only Image:
+        function sendImage(imgMode) {
+
+            var file = document.getElementById('filename').files[0];
+            var reader = new FileReader();
+            var rawData = new ArrayBuffer();
+            reader.loadend = function () {
+            }
+            reader.onload = function (e) {
+                rawData = e.target.result;
+
+                doSend(JSON.stringify({ "Image_HWCIDs": SelectedHWCs, "ImageMode": imgMode, "ImageData": Array.from(new Uint8Array(rawData)) }));
+            }
+
+            if (file != null) {
+                reader.readAsArrayBuffer(file)
+            } else {
+                doSend(JSON.stringify({ "Image_HWCIDs": SelectedHWCs, "ImageMode": imgMode }));
+            }
         }
 
         // Draw Control Block:
@@ -381,16 +402,25 @@
                 output += '<option value="4"' + (RWPState["HWCExtended"]["Interpretation"] == 4 ? ' selected="selected"' : '') + '>VU meter</option>';
                 output += '<option value="5"' + (RWPState["HWCExtended"]["Interpretation"] == 5 ? ' selected="selected"' : '') + '>Position</option>';
                 output += '</select>';
-                output += '<input type="text" value="' + parseInt(RWPState["HWCExtended"]["Value"]!=null?RWPState["HWCExtended"]["Value"]:0) + '" onchange="RWPState[\'HWCExtended\'][\'Value\']=parseInt(this.value); sendExtended(); drawControlBlock(); return false;">';
+                output += '<input type="text" value="' + parseInt(RWPState["HWCExtended"]["Value"] != null ? RWPState["HWCExtended"]["Value"] : 0) + '" onchange="RWPState[\'HWCExtended\'][\'Value\']=parseInt(this.value); sendExtended(); drawControlBlock(); return false;">';
 
                 // Text:
                 output += '<hr/>';
                 output += '<b>Text:</b><br/>';
-                output += 'Title: <input type="text" value="' + (RWPState["HWCText"]["Title"]!=null?RWPState["HWCText"]["Title"]:"") + '" onchange="RWPState[\'HWCText\'][\'Title\']=this.value; sendText(); drawControlBlock(); return false;">';
-                output += '<input type="checkbox" onchange="RWPState[\'HWCText\'][\'SolidHeaderBar\']=this.checked; sendText(); drawControlBlock(); return false;"' + (RWPState["HWCText"]["SolidHeaderBar"]!=null && RWPState["HWCText"]["SolidHeaderBar"]?" checked":"") + '> Solid header<br/>';
+                output += 'Title: <input type="text" value="' + (RWPState["HWCText"]["Title"] != null ? RWPState["HWCText"]["Title"] : "") + '" onchange="RWPState[\'HWCText\'][\'Title\']=this.value; sendText(); drawControlBlock(); return false;">';
+                output += '<input type="checkbox" onchange="RWPState[\'HWCText\'][\'SolidHeaderBar\']=this.checked; sendText(); drawControlBlock(); return false;"' + (RWPState["HWCText"]["SolidHeaderBar"] != null && RWPState["HWCText"]["SolidHeaderBar"] ? " checked" : "") + '> Solid header<br/>';
 
-                output += 'Textline 1: <input type="text" value="' + (RWPState["HWCText"]["Textline1"]!=null?RWPState["HWCText"]["Textline1"]:"") + '" onchange="RWPState[\'HWCText\'][\'Textline1\']=this.value; sendText(); drawControlBlock(); return false;"><br/>';
-                output += 'Textline 2: <input type="text" value="' + (RWPState["HWCText"]["Textline2"]!=null?RWPState["HWCText"]["Textline2"]:"") + '" onchange="RWPState[\'HWCText\'][\'Textline2\']=this.value; RWPState[\'HWCText\'][\'PairMode\']=(this.value==\'\'?0:1); sendText(); drawControlBlock(); return false;"><br/>';
+                output += 'Textline 1: <input type="text" value="' + (RWPState["HWCText"]["Textline1"] != null ? RWPState["HWCText"]["Textline1"] : "") + '" onchange="RWPState[\'HWCText\'][\'Textline1\']=this.value; sendText(); drawControlBlock(); return false;"><br/>';
+                output += 'Textline 2: <input type="text" value="' + (RWPState["HWCText"]["Textline2"] != null ? RWPState["HWCText"]["Textline2"] : "") + '" onchange="RWPState[\'HWCText\'][\'Textline2\']=this.value; RWPState[\'HWCText\'][\'PairMode\']=(this.value==\'\'?0:1); sendText(); drawControlBlock(); return false;"><br/>';
+
+                // Images:
+                output += '<hr/>';
+                output += '<b>Images:</b><br/>';
+                output += '<input type="button" value="B/W" onclick="return sendImage(\'bw\');"> ';
+                output += '<input type="button" value="Gray" onclick="return sendImage(\'gray\');"> ';
+                output += '<input type="button" value="Color" onclick="return sendImage(\'color\');"> ';
+
+                output += '<input type="file" id="filename" /> ';
 
 
                 // Full state

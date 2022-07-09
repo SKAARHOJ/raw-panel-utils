@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	topology "github.com/SKAARHOJ/rawpanel-lib/topology"
 )
 
 func getTimeString() string {
@@ -19,4 +21,14 @@ func prettyHexPrint(data []byte) string {
 	}
 
 	return strings.TrimSpace(output)
+}
+
+func getDisplay(hwc uint32) *topology.TopologyHWcTypeDef_Display {
+	for _, HWcDef := range TopologyData.HWc {
+		if HWcDef.Id == hwc {
+			typeDef := TopologyData.GetTypeDefWithOverride(&HWcDef)
+			return typeDef.Disp
+		}
+	}
+	return nil
 }
