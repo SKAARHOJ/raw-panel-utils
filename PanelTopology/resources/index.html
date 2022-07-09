@@ -280,7 +280,7 @@
             doSend(JSON.stringify({ "RWPState": { "HWCIDs": RWPState["HWCIDs"], "HWCColor": RWPState["HWCColor"] } }));
         }
         function initColorIndex() {
-            if (!RWPState["HWCColor"].hasOwnProperty("ColorIndex")) {
+            if (!RWPState["HWCColor"].hasOwnProperty("ColorIndex") || RWPState["HWCColor"]["ColorIndex"] == null) {
                 RWPState["HWCColor"]["ColorIndex"] = {};
             }
             RWPState["HWCColor"]["ColorRGB"] = null;
@@ -316,6 +316,40 @@
                 reader.readAsArrayBuffer(file)
             } else {
                 doSend(JSON.stringify({ "Image_HWCIDs": SelectedHWCs, "ImageMode": imgMode }));
+            }
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        function hexToRgb(hex) {
+            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            if (result) {
+                var r = parseInt(result[1], 16);
+                var g = parseInt(result[2], 16);
+                var b = parseInt(result[3], 16);
+                return [r, g, b];
+            }
+            return null;
+        }
+        function printColor() {
+            if (RWPState["HWCColor"]["ColorRGB"] != null) {
+                return rgbToHex(RWPState["HWCColor"]["ColorRGB"]["Red"], RWPState["HWCColor"]["ColorRGB"]["Green"], RWPState["HWCColor"]["ColorRGB"]["Blue"])
+            } else {
+                return "#......"
+            }
+        }
+        function convertColorInput(colorInHex) {
+            rgb = hexToRgb(colorInHex);
+            if (rgb != null) {
+                RWPState["HWCColor"]["ColorIndex"] = null;
+                RWPState["HWCColor"]["ColorRGB"] = {
+                    "Red": rgb[0],
+                    "Green": rgb[1],
+                    "Blue": rgb[2]
+                };
+                sendColor();
             }
         }
 
@@ -392,6 +426,8 @@
                     output += '<input type="button" style="font-size: 11px; padding: 1 1 1 1; width: 60px; background-color: ' + ColorArray[i][1] + '" value="' + ColorArray[i][0] + '" onclick="initColorIndex(); RWPState[\'HWCColor\'][\'ColorIndex\'][\'Index\']=' + ColorArray[i][2] + '; sendColor(); drawControlBlock(); return false;"' + (RWPState["HWCColor"]["ColorIndex"] != null && RWPState["HWCColor"]["ColorIndex"]["Index"] == ColorArray[i][2] ? ' class="selected"' : '') + '> ';
                 }
 
+                output += '<br/>RGB code: <input id="ColorRGBvalue" type="text" value="' + printColor() + '" onchange="convertColorInput(this.value); return false;"><span type="button" id="colorPicker"><b>Pick...</b></span>';
+
                 // Extended value:
                 output += '<hr/>';
                 output += '<b>Extended Return Value:</b><br/>';
@@ -428,9 +464,18 @@
             }
 
             document.getElementById("Control").innerHTML = output;
-        }
 
+            var picker = new Picker({ parent: document.querySelector('#colorPicker'), color: lastColorSelected, alpha: false, editor: false});
+            picker.onChange = function (color) {
+                lastColorSelected = color.hex.substring(0, 7)
+                convertColorInput(lastColorSelected);
+                document.getElementById("ColorRGBvalue").value = lastColorSelected;
+            };
+
+        }
+        var lastColorSelected = "#000000";
     </script>
+    <script src="https://unpkg.com/vanilla-picker@2"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

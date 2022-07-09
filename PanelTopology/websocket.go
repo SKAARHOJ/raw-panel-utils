@@ -93,7 +93,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func homePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, string(ReadResourceFile("resources/index.html")))
+	fmt.Fprint(w, string(ReadResourceFile("resources/index.html")))
 }
 func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }

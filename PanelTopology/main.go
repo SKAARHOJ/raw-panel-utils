@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	su "github.com/SKAARHOJ/ibeam-lib-utils"
 	helpers "github.com/SKAARHOJ/rawpanel-lib"
 	rwp "github.com/SKAARHOJ/rawpanel-lib/ibeam_rawpanel"
 	"google.golang.org/protobuf/proto"
@@ -43,7 +44,7 @@ var lastStateMu sync.Mutex
 func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage, binaryPanel bool) {
 
 	for {
-		fmt.Println("Trying to connect to panel on " + panelIPAndPort + "...")
+		fmt.Println("Trying to connect to panel on " + panelIPAndPort + " using " + su.Qstr(binaryPanel, "Binary mode", "ASCII mode") + "...")
 		c, err := net.Dial("tcp", panelIPAndPort)
 
 		if err != nil {
