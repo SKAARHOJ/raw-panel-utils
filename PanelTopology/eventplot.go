@@ -113,7 +113,7 @@ func eventPlot(Event *rwp.HWCEvent) {
 			y = newY
 		}
 		if event.Pulsed != nil {
-			newY = int(event.Pulsed.Value*100) + 50 + 500
+			newY = int(-event.Pulsed.Value*100) + 50 + 500
 			innerSVG += fmt.Sprintf(`<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#333333" stroke-width="1" />`, newX, 550, newX, newY)
 			innerSVG += fmt.Sprintf(`<circle cx="%d" cy="%d" r="4" fill="#333333" />`, newX, newY)
 			x = newX

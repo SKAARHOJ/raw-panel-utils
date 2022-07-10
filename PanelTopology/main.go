@@ -170,6 +170,7 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 }
 
 var TopologyData = &topology.Topology{}
+var TotalUptimeGlobal uint32
 
 func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage) {
 
@@ -292,6 +293,7 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 						lastState.BootsCount = msg.RunTimeStats.BootsCount
 					}
 					if msg.RunTimeStats.TotalUptime > 0 {
+						TotalUptimeGlobal = msg.RunTimeStats.TotalUptime // Because we need the value below and these may not come in the same message (they DONT on ASCII version of RWP protocol...)
 						lastState.TotalUptime = fmt.Sprintf("%dd %dh", msg.RunTimeStats.TotalUptime/60/24, (msg.RunTimeStats.TotalUptime/60)%24)
 					}
 					if msg.RunTimeStats.SessionUptime > 0 {
@@ -299,8 +301,8 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					}
 					if msg.RunTimeStats.ScreenSaveOnTime > 0 {
 						pct := -1
-						if msg.RunTimeStats.TotalUptime > 0 {
-							pct = 100 * int(msg.RunTimeStats.ScreenSaveOnTime) / int(msg.RunTimeStats.TotalUptime)
+						if TotalUptimeGlobal > 0 {
+							pct = 100 * int(msg.RunTimeStats.ScreenSaveOnTime) / int(TotalUptimeGlobal)
 						}
 						lastState.ScreenSaveOnTime = fmt.Sprintf("%dd %dh (%d%%)", msg.RunTimeStats.ScreenSaveOnTime/60/24, (msg.RunTimeStats.ScreenSaveOnTime/60)%24, pct)
 					}
