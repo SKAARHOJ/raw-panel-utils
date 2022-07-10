@@ -82,13 +82,24 @@
                 document.getElementById("BootsCount").innerHTML = obj["BootsCount"]
             }
             if (obj.hasOwnProperty("TotalUptime")) {
-                document.getElementById("TotalUptime").innerHTML = Math.round(obj["TotalUptime"]/60)+" hours";
+                document.getElementById("TotalUptime").innerHTML = obj["TotalUptime"];
             }
             if (obj.hasOwnProperty("SessionUptime")) {
-                document.getElementById("SessionUptime").innerHTML = obj["SessionUptime"]+" min";
+                document.getElementById("SessionUptime").innerHTML = obj["SessionUptime"];
             }
             if (obj.hasOwnProperty("ScreenSaveOnTime")) {
-                document.getElementById("ScreenSaveOnTime").innerHTML = Math.round(obj["ScreenSaveOnTime"]/60) + " hours";
+                document.getElementById("ScreenSaveOnTime").innerHTML = obj["ScreenSaveOnTime"];
+            }
+
+            if (obj.hasOwnProperty("RDYBSY")) {
+                document.getElementById("RDYBSY").innerHTML = obj["RDYBSY"]
+            }
+            if (obj.hasOwnProperty("Sleeping")) {
+                document.getElementById("Sleeping").innerHTML = obj["Sleeping"]
+            }
+
+            if (obj.hasOwnProperty("CPUState")) {
+                document.getElementById("CPUState").innerHTML = obj["CPUState"]
             }
 
             if (obj.hasOwnProperty("ControlBlock")) {
@@ -518,6 +529,29 @@
         function action_clearDisplays() {
             doSend(`{"Command": {"ClearDisplays":true}}`);
         }
+
+        function action_Sleep(sleep) {
+            doSend(`{"Command": {"SetSleepTimeout":{"Value":` + (sleep * 1000) + `}}}`);
+        }
+        function action_WakeUp() {
+            doSend(`{"Command": {"WakeUp":true}}`);
+        }
+
+        function action_SetBrightness(value) {
+            if (value >= 0) {
+                doSend(`{"Command": {"PanelBrightness":{"OLEDs":` + (value) + `,"LEDs":` + (value) + `}}}`);
+            }
+        }
+        function action_LoadCPU(value) {
+            if (value >= 0) {
+                doSend(`{"Command": {"LoadCPU":{"Level":` + (value) + `}}}`);
+            }
+        }
+
+        function action_FullThrottle() {
+            doSend(`{"FullThrottle": true}`);
+        }
+
     </script>
     <script src="https://unpkg.com/vanilla-picker@2"></script>
     <style>
@@ -641,11 +675,11 @@
                 <td><b>S/W version:</b></td>
                 <td><span id="SoftwareVersion"></span></td>
 
-                <td><b></b></td>
-                <td><span id=""></span></td>
-
-                <td><b>BootsCount:</b></td>
+                <td><b>Boot Count:</b></td>
                 <td><span id="BootsCount"></span></td>
+
+                <td><b>Rdy/Bsy:</b></td>
+                <td><span id="RDYBSY"></span></td>
             </tr>
             <tr>
                 <td><b>Model:</b></td>
@@ -654,11 +688,11 @@
                 <td><b>Platform:</b></td>
                 <td><span id="Platform"></span></td>
 
-                <td><b></b></td>
-                <td><span id=""></span></td>
-
-                <td><b>TotalUptime:</b></td>
+                <td><b>Total Uptime:</b></td>
                 <td><span id="TotalUptime"></span></td>
+
+                <td><b>Sleeping:</b></td>
+                <td><span id="Sleeping"></span></td>
             </tr>
             <tr>
                 <td><b>Serial:</b></td>
@@ -667,29 +701,98 @@
                 <td><b>Blue Pill Ready:</b></td>
                 <td><span id="BluePillReady"></span></td>
 
-                <td><b>Connections:</b></td>
-                <td><span id="Connections"></span></td>
-
-                <td><b>SessionUptime:</b></td>
+                <td><b>Session Uptime:</b></td>
                 <td><span id="SessionUptime"></span></td>
+
+                <td><b>CPU:</b></td>
+                <td><span id="CPUState"></span></td>
             </tr>
             <tr>
                 <td><b>Max Clients:</b></td>
                 <td><span id="MaxClients"></span></td>
 
+                <td><b></b></td>
+                <td><span id=""></span></td>
+
+                <td><b>Screen Save On:</b></td>
+                <td><span id="ScreenSaveOnTime"></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
+            </tr>
+            <tr>
+                <td><b>Connections:</b></td>
+                <td><span id="Connections"></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
+            </tr>
+            <tr>
                 <td><b>Locked to IPs:</b></td>
                 <td><span id="LockedToIPs"></span></td>
 
                 <td><b></b></td>
                 <td><span id=""></span></td>
 
-                <td><b>ScreenSaveOnTime:</b></td>
-                <td><span id="ScreenSaveOnTime"></span></td>
+                <td><b></b></td>
+                <td><span id=""></span></td>
+
+                <td><b></b></td>
+                <td><span id=""></span></td>
             </tr>
         </table>
-        <input type="button" value="Clear All" onclick="action_clearAll(); return false;"> 
-        <input type="button" value="Clear Disp" onclick="action_clearDisplays(); return false;"> 
-        <input type="button" value="Clear LEDs" onclick="action_clearLEDs(); return false;"> 
+        <input type="button" value="Clear All" onclick="action_clearAll(); return false;">
+        <input type="button" value="Clear Disp" onclick="action_clearDisplays(); return false;">
+        <input type="button" value="Clear LEDs" onclick="action_clearLEDs(); return false;">
+        <input type="button" value="Full Throttle" onclick="action_FullThrottle(); return false;">
+        &nbsp;
+        <input type="button" value="Sleep 5s" onclick="action_Sleep(5); return false;">
+        <input type="button" value="Sleep 2m" onclick="action_Sleep(2*60); return false;">
+        <input type="button" value="Sleep 1h" onclick="action_Sleep(60*60); return false;">
+        <input type="button" value="Never" onclick="action_Sleep(0); return false;">
+        <input type="button" value="Wake Up" onclick="action_WakeUp(); return false;">
+        <br />
+
+        <select onchange="action_SetBrightness(this.options[this.selectedIndex].value);">
+            <option value="-1">Brightness:</option>
+            <option value="0">Lowest/Off</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">Medium</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">Full</option>
+        </select>
+
+        <select onchange="action_SetDimmedGain(this.options[this.selectedIndex].value);">
+            <option value="-1">Dimmed Gain:</option>
+            <option value="0">Default</option>
+            <option value="2">2/64</option>
+            <option value="4">4/64</option>
+            <option value="8">8/64</option>
+            <option value="12">12/64</option>
+            <option value="16">16/64 (default)</option>
+            <option value="24">24/64</option>
+            <option value="32">32/64</option>
+        </select>
+
+        <select onchange="action_LoadCPU(this.options[this.selectedIndex].value);">
+            <option value="-1">Load CPU Cores:</option>
+            <option value="0">None</option>
+            <option value="1">25%</option>
+            <option value="2">50%</option>
+            <option value="3">75%</option>
+            <option value="4">100%</option>
+        </select>
+
     </div>
     <p class="tip">Various panel information.</p>
 

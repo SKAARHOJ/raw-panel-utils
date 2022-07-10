@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1010" width="100%" id="ctrlimg">
+  <defs>
+    <linearGradient id="topdownSimpleBlack" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:rgb(50,50,50);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgb(25,25,25);stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="leftToRightSimpleBlack" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgb(50,50,50);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgb(25,25,25);stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <style>text { font-family: Sans,Arial; }</style>
+  <rect width="1496" height="1006" x="302" y="2" rx="100" ry="100" style="fill:url(#leftToRightSimpleBlack); stroke:rgb(0,0,0); stroke-width:2;" />
+  <rect width="1496" height="1006" x="20" y="2" rx="100" ry="100" style="fill:#000000; stroke:rgb(0,0,0); stroke-width:2;" />
+  <rect width="1496" height="1006" x="2" y="2" rx="100" ry="100" style="fill:url(#topdownSimpleBlack); stroke:rgb(0,0,0); stroke-width:2;" />
+  <rect width="1000" height="570" x="250" y="100" rx="20" ry="20" style="fill:black; stroke:rgb(0,0,0); stroke-width:0;" />
+  <text x="750" y="40" style="text-anchor:middle; fill:white; font-family:Verdana; font-weight:bold; font-size:25; transform:scale(1,1.2); letter-spacing:0px;">LOUPEDECK LIVE</text>
+  <circle cx="120" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc1" onclick="clickHWC(evt,1)" />
+  <text x="120" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Home</text>
+  <text x="120" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">1</text>
+  <circle cx="300" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc2" onclick="clickHWC(evt,2)" />
+  <text x="300" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">1</text>
+  <text x="300" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">2</text>
+  <circle cx="480" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc3" onclick="clickHWC(evt,3)" />
+  <text x="480" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">2</text>
+  <text x="480" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">3</text>
+  <circle cx="660" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc4" onclick="clickHWC(evt,4)" />
+  <text x="660" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">3</text>
+  <text x="660" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">4</text>
+  <circle cx="840" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc5" onclick="clickHWC(evt,5)" />
+  <text x="840" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">4</text>
+  <text x="840" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">5</text>
+  <circle cx="1020" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc6" onclick="clickHWC(evt,6)" />
+  <text x="1020" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">5</text>
+  <text x="1020" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">6</text>
+  <circle cx="1200" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc7" onclick="clickHWC(evt,7)" />
+  <text x="1200" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">6</text>
+  <text x="1200" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">7</text>
+  <circle cx="1380" cy="820" r="60" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc8" onclick="clickHWC(evt,8)" />
+  <text x="1380" y="833" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">7</text>
+  <text x="1380" y="780" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">8</text>
+  <circle cx="130" cy="150" r="70" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc9" onclick="clickHWC(evt,9)" />
+  <text x="130" y="163" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Enc1</text>
+  <text x="130" y="100" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">9</text>
+  <circle cx="130" cy="390" r="70" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc10" onclick="clickHWC(evt,10)" />
+  <text x="130" y="403" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Enc2</text>
+  <text x="130" y="340" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">10</text>
+  <circle cx="130" cy="630" r="70" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc11" onclick="clickHWC(evt,11)" />
+  <text x="130" y="643" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Enc3</text>
+  <text x="130" y="580" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">11</text>
+  <circle cx="1370" cy="150" r="70" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc12" onclick="clickHWC(evt,12)" />
+  <text x="1370" y="163" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Enc4</text>
+  <text x="1370" y="100" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">12</text>
+  <circle cx="1370" cy="390" r="70" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc13" onclick="clickHWC(evt,13)" />
+  <text x="1370" y="403" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Enc5</text>
+  <text x="1370" y="340" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">13</text>
+  <circle cx="1370" cy="630" r="70" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc14" onclick="clickHWC(evt,14)" />
+  <text x="1370" y="643" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Enc6</text>
+  <text x="1370" y="580" text-anchor="middle" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">14</text>
+  <rect x="408" y="132" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc15" onclick="clickHWC(evt,15)" />
+  <rect x="413" y="172" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="483" y="220" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch1</text>
+  <text x="412" y="152" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">15</text>
+  <rect x="586" y="132" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc16" onclick="clickHWC(evt,16)" />
+  <rect x="591" y="172" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="661" y="220" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch2</text>
+  <text x="590" y="152" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">16</text>
+  <rect x="764" y="132" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc17" onclick="clickHWC(evt,17)" />
+  <rect x="769" y="172" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="839" y="220" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch3</text>
+  <text x="768" y="152" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">17</text>
+  <rect x="942" y="132" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc18" onclick="clickHWC(evt,18)" />
+  <rect x="947" y="172" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="1017" y="220" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch4</text>
+  <text x="946" y="152" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">18</text>
+  <rect x="408" y="310" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc19" onclick="clickHWC(evt,19)" />
+  <rect x="413" y="350" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="483" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch5</text>
+  <text x="412" y="330" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">19</text>
+  <rect x="586" y="310" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc20" onclick="clickHWC(evt,20)" />
+  <rect x="591" y="350" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="661" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch6</text>
+  <text x="590" y="330" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">20</text>
+  <rect x="764" y="310" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc21" onclick="clickHWC(evt,21)" />
+  <rect x="769" y="350" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="839" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch7</text>
+  <text x="768" y="330" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">21</text>
+  <rect x="942" y="310" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc22" onclick="clickHWC(evt,22)" />
+  <rect x="947" y="350" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="1017" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch8</text>
+  <text x="946" y="330" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">22</text>
+  <rect x="408" y="488" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc23" onclick="clickHWC(evt,23)" />
+  <rect x="413" y="528" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="483" y="576" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch9</text>
+  <text x="412" y="508" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">23</text>
+  <rect x="586" y="488" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc24" onclick="clickHWC(evt,24)" />
+  <rect x="591" y="528" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="661" y="576" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch10</text>
+  <text x="590" y="508" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">24</text>
+  <rect x="764" y="488" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc25" onclick="clickHWC(evt,25)" />
+  <rect x="769" y="528" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="839" y="576" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch11</text>
+  <text x="768" y="508" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">25</text>
+  <rect x="942" y="488" width="150" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc26" onclick="clickHWC(evt,26)" />
+  <rect x="947" y="528" width="141" height="111" pointer-events="none" rx="5" ry="5" style="fill:rgb(33,33,33);" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="1017" y="576" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Touch12</text>
+  <text x="946" y="508" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">26</text>
+  <rect x="275" y="132" width="110" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc27" onclick="clickHWC(evt,27)" />
+  <text x="330" y="220" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">D1</text>
+  <text x="279" y="152" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">27</text>
+  <rect x="275" y="310" width="110" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc28" onclick="clickHWC(evt,28)" />
+  <text x="330" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">D2</text>
+  <text x="279" y="330" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">28</text>
+  <rect x="275" y="488" width="110" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc29" onclick="clickHWC(evt,29)" />
+  <text x="330" y="576" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">D3</text>
+  <text x="279" y="508" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">29</text>
+  <rect x="1115" y="132" width="110" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc30" onclick="clickHWC(evt,30)" />
+  <text x="1170" y="220" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">D4</text>
+  <text x="1119" y="152" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">30</text>
+  <rect x="1115" y="310" width="110" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc31" onclick="clickHWC(evt,31)" />
+  <text x="1170" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">D5</text>
+  <text x="1119" y="330" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">31</text>
+  <rect x="1115" y="488" width="110" height="150" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc32" onclick="clickHWC(evt,32)" />
+  <text x="1170" y="576" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">D6</text>
+  <text x="1119" y="508" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">32</text>
+  <rect x="1565" y="130" width="30" height="510" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc33" onclick="clickHWC(evt,33)" />
+  <rect x="1543" y="262" width="75" height="125" pointer-events="none" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="1580" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Fader1</text>
+  <text x="1569" y="150" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">33</text>
+  <rect x="1705" y="130" width="30" height="510" rx="10" fill="#dddddd" stroke="#000" stroke-width="2" id="SVG_HWc34" onclick="clickHWC(evt,34)" />
+  <rect x="1683" y="262" width="75" height="125" pointer-events="none" fill="#cccccc" stroke="#666" stroke-width="1" />
+  <text x="1720" y="398" text-anchor="middle" fill="#000" font-weight="bold" font-size="35" font-family="sans-serif" pointer-events="none">Fader2</text>
+  <text x="1709" y="150" fill="#000" font-size="20" font-family="sans-serif" pointer-events="none">34</text>
+</svg>

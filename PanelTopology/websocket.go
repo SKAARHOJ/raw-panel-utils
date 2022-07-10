@@ -26,9 +26,12 @@ type wsToClient struct {
 	LockedToIPs      string `json:",omitempty"`
 	Connections      string `json:",omitempty"`
 	BootsCount       uint32 `json:",omitempty"`
-	TotalUptime      uint32 `json:",omitempty"`
-	SessionUptime    uint32 `json:",omitempty"`
-	ScreenSaveOnTime uint32 `json:",omitempty"`
+	TotalUptime      string `json:",omitempty"`
+	SessionUptime    string `json:",omitempty"`
+	ScreenSaveOnTime string `json:",omitempty"`
+	RDYBSY           string `json:",omitempty"`
+	Sleeping         string `json:",omitempty"`
+	CPUState         string `json:",omitempty"`
 
 	SvgIcon       string `json:",omitempty"`
 	TopologyTable string `json:",omitempty"`
@@ -49,6 +52,8 @@ type wsFromClient struct {
 	RequestControlForHWC int           `json:",omitempty"`
 
 	Command *rwp.Command `json:",omitempty"`
+
+	FullThrottle bool `json:",omitempty"`
 
 	Image_HWCIDs []int  `json:",omitempty"`
 	ImageMode    string `json:",omitempty"`
@@ -159,9 +164,47 @@ func reader(conn *websocket.Conn) {
 			}
 
 			if wsFromClient.Command != nil {
+				log.Println(log.Indent(wsFromClient.Command))
 				incomingMessages := []*rwp.InboundMessage{
 					&rwp.InboundMessage{
 						Command: wsFromClient.Command,
+					},
+				}
+				incoming <- incomingMessages
+			}
+
+			if wsFromClient.FullThrottle {
+				fmt.Println("Turning Everything On:")
+
+				HWCids := []uint32{}
+				for _, HWcDef := range TopologyData.HWc {
+					HWCids = append(HWCids, HWcDef.Id)
+				}
+				incomingMessages := []*rwp.InboundMessage{
+					&rwp.InboundMessage{
+						Command: &rwp.Command{
+							PanelBrightness: &rwp.Brightness{
+								OLEDs: 8,
+								LEDs:  8,
+							},
+						},
+						States: []*rwp.HWCState{
+							&rwp.HWCState{
+								HWCIDs: HWCids,
+								HWCMode: &rwp.HWCMode{
+									State: 4,
+								},
+								HWCColor: &rwp.HWCColor{
+									ColorIndex: &rwp.ColorIndex{
+										Index: 0,
+									},
+								},
+								HWCText: &rwp.HWCText{
+									Formatting: 7,
+									Inverted:   true,
+								},
+							},
+						},
 					},
 				}
 				incoming <- incomingMessages

@@ -21,6 +21,7 @@ require (
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/subchen/go-xmldom v1.1.2 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/image v0.0.0-20220617043117-41969df76e82 // indirect
 	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150 // indirect
 )

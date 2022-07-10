@@ -33,6 +33,8 @@ import (
 	log "github.com/s00500/env_logger"
 
 	topology "github.com/SKAARHOJ/rawpanel-lib/topology"
+
+	"go.uber.org/atomic"
 )
 
 var lastState *wsToClient
@@ -62,7 +64,9 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 						ReportHWCavailability: true,
 						GetConnections:        true,
 						GetRunTimeStats:       true,
-						//PublishSystemStat:     5000,
+						PublishSystemStat: &rwp.PublishSystemStat{
+							PeriodSec: 15,
+						},
 						SetHeartBeatTimer: &rwp.HeartBeatTimer{
 							Value: 3000,
 						},
@@ -71,6 +75,7 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 			}
 
 			quit := make(chan bool)
+			poll := time.NewTicker(time.Millisecond * 60 * 1000)
 			go func() {
 				//a := 0
 				for {
@@ -97,6 +102,15 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 								//fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
 								c.Write([]byte(line + "\n"))
 							}
+						}
+					case <-poll.C:
+						incoming <- []*rwp.InboundMessage{
+							&rwp.InboundMessage{
+								Command: &rwp.Command{
+									GetConnections:  true,
+									GetRunTimeStats: true,
+								},
+							},
 						}
 					}
 				}
@@ -159,7 +173,7 @@ var TopologyData = &topology.Topology{}
 
 func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage) {
 
-	var HWCavailabilityMapChanged bool
+	var sendStateToClient atomic.Bool
 	var HWCavailabilityMap = make(map[uint32]uint32)
 	var ReceivedTopology bool
 	var IsSleeping bool
@@ -240,52 +254,96 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 						},
 					}
 				}
+
+				if msg.FlowMessage == 5 { // RDY
+					wsslice.Iter(func(w *wsclient) {
+						w.msgToClient <- &wsToClient{
+							RDYBSY: "<span style='color: red;'>BSY</span>",
+						}
+					})
+				}
+
+				if msg.FlowMessage == 5 { // BSY
+					wsslice.Iter(func(w *wsclient) {
+						w.msgToClient <- &wsToClient{
+							RDYBSY: "<span style='color: green;'>RDY</span>",
+						}
+					})
+				}
+
+				if msg.SleepState != nil { // Sleeping flag
+					IsSleeping = msg.SleepState.IsSleeping
+					wsslice.Iter(func(w *wsclient) {
+						w.msgToClient <- &wsToClient{
+							Sleeping: su.Qstr(msg.SleepState.IsSleeping, "<span style='color: orange;'>Sleeping</span>", "<span style='color: green;'>Awake</span>"),
+						}
+					})
+				}
+
 				if msg.Connections != nil {
-					lastState.Connections = strings.Join(msg.Connections.Connection, ";")
+					lastStateMu.Lock()
+					lastState.Connections = strings.Join(msg.Connections.Connection, " ") + " "
+					lastStateMu.Unlock()
+					sendStateToClient.Store(true)
 				}
 				if msg.RunTimeStats != nil {
+					lastStateMu.Lock()
 					if msg.RunTimeStats.BootsCount > 0 {
 						lastState.BootsCount = msg.RunTimeStats.BootsCount
 					}
 					if msg.RunTimeStats.TotalUptime > 0 {
-						lastState.TotalUptime = msg.RunTimeStats.TotalUptime
+						lastState.TotalUptime = fmt.Sprintf("%dd %dh", msg.RunTimeStats.TotalUptime/60/24, (msg.RunTimeStats.TotalUptime/60)%24)
 					}
 					if msg.RunTimeStats.SessionUptime > 0 {
-						lastState.SessionUptime = msg.RunTimeStats.SessionUptime
+						lastState.SessionUptime = fmt.Sprintf("%dh %dm", msg.RunTimeStats.SessionUptime/60, msg.RunTimeStats.SessionUptime%60)
 					}
 					if msg.RunTimeStats.ScreenSaveOnTime > 0 {
-						lastState.ScreenSaveOnTime = msg.RunTimeStats.ScreenSaveOnTime
+						pct := -1
+						if msg.RunTimeStats.TotalUptime > 0 {
+							pct = 100 * int(msg.RunTimeStats.ScreenSaveOnTime) / int(msg.RunTimeStats.TotalUptime)
+						}
+						lastState.ScreenSaveOnTime = fmt.Sprintf("%dd %dh (%d%%)", msg.RunTimeStats.ScreenSaveOnTime/60/24, (msg.RunTimeStats.ScreenSaveOnTime/60)%24, pct)
 					}
+					lastStateMu.Unlock()
+					sendStateToClient.Store(true)
 				}
 
 				// Picking up availability information (map command)
 				if msg.HWCavailability != nil && !IsSleeping { // Only update the map internally if the panel is not asleep. Luckily the sleep indication will arrive before the updated map, so we can use this to prevent the map from being updated.
 					//log.Println(log.Indent(msg.HWCavailability))
 					for HWCid, MappedTo := range msg.HWCavailability {
-						HWCavailabilityMapChanged = true
+						sendStateToClient.Store(true)
 						HWCavailabilityMap[HWCid] = MappedTo
 					}
 				}
 
 				if msg.Events != nil {
 					for _, Event := range msg.Events {
-						eventMessage := &wsToClient{
-							PanelEvent: Event,
-							Time:       getTimeString(),
-						}
-						wsslice.Iter(func(w *wsclient) { w.msgToClient <- eventMessage })
+						if Event.SysStat != nil {
+							wsslice.Iter(func(w *wsclient) {
+								w.msgToClient <- &wsToClient{
+									CPUState: fmt.Sprintf("%.1fC, %d%%, %dMHz", Event.SysStat.CPUTemp, Event.SysStat.CPUUsage, Event.SysStat.CPUFreqCurrent/1000),
+								}
+							})
+						} else {
+							eventMessage := &wsToClient{
+								PanelEvent: Event,
+								Time:       getTimeString(),
+							}
+							wsslice.Iter(func(w *wsclient) { w.msgToClient <- eventMessage })
 
-						eventPlot(Event)
+							eventPlot(Event)
+						}
 					}
 				}
 			}
 			SendTopMutex.Unlock()
 		case <-t.C: // Send topology based on a timer so that we don't trigger it on every received map command for example. Rather, state for map and topology will be pooled together and forwarded every half second.
 			SendTopMutex.Lock()
-			if (ReceivedTopology || HWCavailabilityMapChanged) && (topologyJSON != "" && topologySVG != "") {
-				//fmt.Println("ReceivedTopology, HWCavailabilityMapChanged", ReceivedTopology, HWCavailabilityMapChanged)
+			if (ReceivedTopology || sendStateToClient.Load()) && (topologyJSON != "" && topologySVG != "") {
+				//fmt.Println("ReceivedTopology, sendStateToClient", ReceivedTopology, sendStateToClient)
 				ReceivedTopology = false
-				HWCavailabilityMapChanged = false
+				sendStateToClient.Store(false)
 				//log.Println(log.Indent(HWCavailabilityMap))
 
 				svgIcon := topology.GenerateCompositeSVG(topologyJSON, topologySVG, HWCavailabilityMap)
