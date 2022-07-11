@@ -129,6 +129,10 @@ func logoheaderPage(w http.ResponseWriter, r *http.Request) {
 func kasperwasherePage(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(ReadResourceFile("resources/kasperwashere.png")))
 }
+func colorPickerJS(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, string(ReadResourceFile("resources/vanilla-picker.js")))
+}
+
 func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
@@ -176,6 +180,12 @@ func reader(conn *websocket.Conn) {
 				}
 			})
 			ZeroconfEntriesMu.Unlock()
+			wsslice.Iter(func(w *wsclient) {
+				w.msgToClient <- &wsToClient{
+					ConnectedSignal: isConnected.Load(),
+				}
+			})
+
 		default:
 			wsFromClient := &wsFromClient{}
 			err := json.Unmarshal(p, wsFromClient)
@@ -231,6 +241,7 @@ func reader(conn *websocket.Conn) {
 								HWCMode: &rwp.HWCMode{
 									State: 4,
 								},
+								HWCExtended: &rwp.HWCExtended{},
 								HWCColor: &rwp.HWCColor{
 									ColorIndex: &rwp.ColorIndex{
 										Index: 0,
@@ -365,6 +376,9 @@ func setupRoutes() {
 	http.HandleFunc("/", homePage)
 	http.HandleFunc("/logoheader.png", logoheaderPage)
 	http.HandleFunc("/kasperwashere.png", kasperwasherePage)
+
+	http.HandleFunc("/vanilla-picker.js", colorPickerJS)
+
 	http.HandleFunc("/panel", panelPage)
 	http.HandleFunc("/ws", wsEndpoint)
 }

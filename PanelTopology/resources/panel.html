@@ -46,7 +46,7 @@
         function onMessage(evt) {
             const obj = JSON.parse(evt.data);
 
-            if (obj.hasOwnProperty("DisconnectedSignal") && obj["DisconnectedSignal"]) {
+            if (obj["DisconnectedSignal"]) {
                 document.location = "/";
             }
 
@@ -559,7 +559,7 @@
             doSend(`{"Disconnect": true}`);
         }
     </script>
-    <script src="https://unpkg.com/vanilla-picker@2"></script>
+    <script src="vanilla-picker.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
