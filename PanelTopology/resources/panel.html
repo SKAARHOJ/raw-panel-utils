@@ -145,6 +145,9 @@
             if (obj.hasOwnProperty("RWPJSONToPanel")) {
                 document.getElementById("RWPJSONToPanel").innerHTML = obj["RWPJSONToPanel"]
             }
+            if (obj.hasOwnProperty("StepDescription")) {
+                document.getElementById("StepDescription").innerHTML = obj["StepDescription"]
+            }
 
             //websocket.close();
             logToScreen('<span style="color: blue;">RESPONSE: ' + evt.data + '</span><br/>');
@@ -308,6 +311,18 @@
             if (!RWPState.hasOwnProperty("HWCText")) {
                 RWPState["HWCText"] = { "Formatting": 7 }
             }
+        }
+
+        function startDemo()    {
+            doSend(JSON.stringify({ "DemoHWCs": SelectedHWCs, "DemoStart": true }));
+        }
+
+        function demoBackward()    {
+            doSend(JSON.stringify({ "DemoBackward": true }));
+        }
+
+        function demoForward()    {
+            doSend(JSON.stringify({ "DemoForward": true }));
         }
 
         // Sending the full state as its stored
@@ -509,6 +524,7 @@
 
                 // Full state
                 output += '<hr/><input type="button" value="Send full state" onclick="return sendFullState();">';
+                output += ' - <input type="button" value="Start Demo" onclick="return startDemo();"> <input type="button" value="&lt; Step" onclick="return demoBackward();"> <input type="button" value="Step &gt;" onclick="return demoForward();"> <span id="StepDescription"></span>';
             }
 
             document.getElementById("Control").innerHTML = output;

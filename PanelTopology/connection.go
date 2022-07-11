@@ -52,8 +52,6 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 
 		if err != nil {
 			fmt.Println(err)
-			time.Sleep(time.Second * 3)
-
 			select {
 			case <-ctx.Done():
 				log.Debugln("Stop trying to connect to " + panelIPAndPort)
@@ -169,6 +167,10 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 								//fmt.Println(string("System -> Panel: " + strings.TrimSpace(string(line))))
 								c.Write([]byte(line + "\n"))
 							}
+						}
+
+						if shadowPanelListening.Load() {
+							shadowPanelIncoming <- incomingMessages
 						}
 					case <-poll.C:
 						incoming <- []*rwp.InboundMessage{
@@ -449,9 +451,9 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 				//fmt.Println(topOverviewTable)
 
 				// Create a JSON object to marshal in a pretty format
-				var obj map[string]interface{}
-				json.Unmarshal([]byte(topologyJSON), &obj)
-				s, _ := json.MarshalIndent(obj, "", "  ")
+				shadowPanelTopologyData := &topology.Topology{}
+				json.Unmarshal([]byte(topologyJSON), shadowPanelTopologyData)
+				s, _ := json.MarshalIndent(shadowPanelTopologyData, "", "  ")
 				topJson := string(s)
 
 				// Horrible, but functional processing of the JSON to insert some HTML to be able to highlight the HWCs
@@ -470,10 +472,20 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 				//fmt.Println(topJson)
 
 				// Process it...
-				f, _ := os.Create("_topologySVGFullRender.svg")
-				defer f.Close()
+				f, _ := os.Create("_topologySVGIconFullRender.svg")
 				f.WriteString(svgIcon)
 				f.Sync()
+				f.Close()
+
+				f, _ = os.Create("_topology.svg")
+				f.WriteString(topologySVG)
+				f.Sync()
+				f.Close()
+
+				f, _ = os.Create("_topology.json")
+				f.WriteString(string(s))
+				f.Sync()
+				f.Close()
 
 				lastStateMu.Lock()
 				lastState.SvgIcon = svgIcon

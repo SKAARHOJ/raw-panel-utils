@@ -26,6 +26,7 @@ func main() {
 	// Welcome message!
 	fmt.Println("Welcome to Raw Panel Topology Explorer made by Kasper Skaarhoj (c) 2021-2022")
 	fmt.Println("Open a Web Browser on localhost:8080 to explore the topology interactively.")
+	fmt.Println("usage: [options] [panelIP:port] [Shadow panelIP:port]")
 	fmt.Println("-h for help")
 	fmt.Println()
 
@@ -46,12 +47,19 @@ func main() {
 	// Set up server:
 	incoming = make(chan []*rwp.InboundMessage, 10)
 	outgoing = make(chan []*rwp.OutboundMessage, 10)
+	shadowPanelIncoming = make(chan []*rwp.InboundMessage, 10)
+
+	demoHWCids.Store([]uint32{})
 
 	go runZeroConfSearch()
 
 	// Load default panel up, if set:
 	if len(arguments) > 0 {
 		switchToPanel(string(arguments[0]))
+	}
+
+	if len(arguments) > 1 {
+		connectToShadowPanel(string(arguments[1]), shadowPanelIncoming)
 	}
 
 	// Wait forever:

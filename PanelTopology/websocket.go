@@ -45,6 +45,7 @@ type wsToClient struct {
 	RWPASCIIToPanel    string `json:",omitempty"`
 	RWPProtobufToPanel string `json:",omitempty"`
 	RWPJSONToPanel     string `json:",omitempty"`
+	StepDescription    string `json:",omitempty"`
 
 	ConnectedSignal    bool `json:",omitempty"`
 	DisconnectedSignal bool `json:",omitempty"`
@@ -62,6 +63,11 @@ type wsFromClient struct {
 	Command *rwp.Command `json:",omitempty"`
 
 	FullThrottle bool `json:",omitempty"`
+
+	DemoStart    bool     `json:",omitempty"`
+	DemoHWCs     []uint32 `json:",omitempty"`
+	DemoBackward bool     `json:",omitempty"`
+	DemoForward  bool     `json:",omitempty"`
 
 	Image_HWCIDs []int  `json:",omitempty"`
 	ImageMode    string `json:",omitempty"`
@@ -211,6 +217,7 @@ func reader(conn *websocket.Conn) {
 			}
 
 			if wsFromClient.Command != nil {
+				stopDemo()
 				//log.Println(log.Indent(wsFromClient.Command))
 				incomingMessages := []*rwp.InboundMessage{
 					&rwp.InboundMessage{
@@ -221,6 +228,7 @@ func reader(conn *websocket.Conn) {
 			}
 
 			if wsFromClient.FullThrottle {
+				stopDemo()
 				//fmt.Println("Turning Everything On:")
 
 				HWCids := []uint32{}
@@ -258,7 +266,24 @@ func reader(conn *websocket.Conn) {
 				incoming <- incomingMessages
 			}
 
+			if wsFromClient.DemoStart {
+				HWCids := wsFromClient.DemoHWCs
+				if len(HWCids) == 0 {
+					for _, HWcDef := range TopologyData.HWc {
+						HWCids = append(HWCids, HWcDef.Id)
+					}
+				}
+				startDemo(HWCids)
+			}
+			if wsFromClient.DemoBackward {
+				stepBackward()
+			}
+			if wsFromClient.DemoForward {
+				stepForward()
+			}
+
 			if wsFromClient.RWPState != nil {
+				stopDemo()
 				//log.Println("Received State Change from Client: ", log.Indent(wsFromClient.RWPState))
 
 				/*
@@ -304,6 +329,7 @@ func reader(conn *websocket.Conn) {
 			}
 
 			if wsFromClient.ImageMode != "" {
+				stopDemo()
 				incomingMessages := []*rwp.InboundMessage{
 					&rwp.InboundMessage{
 						States: []*rwp.HWCState{},
