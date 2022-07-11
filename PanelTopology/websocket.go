@@ -45,11 +45,19 @@ type wsToClient struct {
 	RWPASCIIToPanel    string `json:",omitempty"`
 	RWPProtobufToPanel string `json:",omitempty"`
 	RWPJSONToPanel     string `json:",omitempty"`
+
+	ConnectedSignal    bool `json:",omitempty"`
+	DisconnectedSignal bool `json:",omitempty"`
+
+	ZeroconfEntries []*ZeroconfEntry
 }
 
 type wsFromClient struct {
 	RWPState             *rwp.HWCState `json:",omitempty"`
 	RequestControlForHWC int           `json:",omitempty"`
+
+	ConnectTo  string `json:",omitempty"`
+	Disconnect bool   `json:",omitempty"`
 
 	Command *rwp.Command `json:",omitempty"`
 
@@ -112,6 +120,15 @@ var upgrader = websocket.Upgrader{
 func homePage(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(ReadResourceFile("resources/index.html")))
 }
+func panelPage(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, string(ReadResourceFile("resources/panel.html")))
+}
+func logoheaderPage(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, string(ReadResourceFile("resources/logoheader.png")))
+}
+func kasperwasherePage(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, string(ReadResourceFile("resources/kasperwashere.png")))
+}
 func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
@@ -141,7 +158,7 @@ func reader(conn *websocket.Conn) {
 		// read in a message
 		_, p, err := conn.ReadMessage()
 		if err != nil {
-			log.Println(err)
+			//log.Println(err)
 			return
 		}
 		// print out that message for clarity
@@ -150,6 +167,15 @@ func reader(conn *websocket.Conn) {
 			lastStateMu.Lock()
 			wsslice.Iter(func(w *wsclient) { w.msgToClient <- lastState })
 			lastStateMu.Unlock()
+		case "SendIndex":
+			ZeroconfEntriesMu.Lock()
+			wsslice.Iter(func(w *wsclient) {
+				w.msgToClient <- &wsToClient{
+					ZeroconfEntries: ZeroconfEntries,
+					Time:            getTimeString(),
+				}
+			})
+			ZeroconfEntriesMu.Unlock()
 		default:
 			wsFromClient := &wsFromClient{}
 			err := json.Unmarshal(p, wsFromClient)
@@ -163,8 +189,19 @@ func reader(conn *websocket.Conn) {
 				wsslice.Iter(func(w *wsclient) { w.msgToClient <- wsToClient })
 			}
 
+			if wsFromClient.ConnectTo != "" {
+				switchToPanel(wsFromClient.ConnectTo)
+			}
+
+			if wsFromClient.Disconnect {
+				if panelConnectionCancel != nil {
+					log.Println("Disconnected based on ws message")
+					(*panelConnectionCancel)()
+				}
+			}
+
 			if wsFromClient.Command != nil {
-				log.Println(log.Indent(wsFromClient.Command))
+				//log.Println(log.Indent(wsFromClient.Command))
 				incomingMessages := []*rwp.InboundMessage{
 					&rwp.InboundMessage{
 						Command: wsFromClient.Command,
@@ -174,7 +211,7 @@ func reader(conn *websocket.Conn) {
 			}
 
 			if wsFromClient.FullThrottle {
-				fmt.Println("Turning Everything On:")
+				//fmt.Println("Turning Everything On:")
 
 				HWCids := []uint32{}
 				for _, HWcDef := range TopologyData.HWc {
@@ -326,5 +363,8 @@ func reader(conn *websocket.Conn) {
 
 func setupRoutes() {
 	http.HandleFunc("/", homePage)
+	http.HandleFunc("/logoheader.png", logoheaderPage)
+	http.HandleFunc("/kasperwashere.png", kasperwasherePage)
+	http.HandleFunc("/panel", panelPage)
 	http.HandleFunc("/ws", wsEndpoint)
 }

@@ -3,24 +3,10 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>Topology Reader</title>
+    <title>Topology Explorer - Panel Index</title>
     <script language="javascript" type="text/javascript">
 
         var wsUri = "ws://127.0.0.1:8080/ws";
-
-        /*
-            Don't read this code. It will be your worst nightmare. It was written in the middle of the night, 
-            riding on a bronco with the left hand on the keyboard while sorting paper clips by color. 
-            It works, but it's not pretty, not a rolemodel, not for kids. But it get's the job done which 
-            is to provide a neat little UI for inspecting Raw Panel. And I kinda like it this way.
-
-            So, now you are warned.
-
-            MIT Licensed.
-
-            - kasper
-        */
-
 
         function init() {
             setUpWebSocket();
@@ -36,7 +22,7 @@
 
         function onOpen(evt) {
             logToScreen("CONNECTED");
-            doSend("SendAll");
+            doSend("SendIndex");
         }
 
         function onClose(evt) {
@@ -46,100 +32,36 @@
         function onMessage(evt) {
             const obj = JSON.parse(evt.data);
 
+            if (obj.hasOwnProperty("ConnectedSignal") && obj["ConnectedSignal"]) {
+                document.location = "/panel";
+            }
             if (obj.hasOwnProperty("Time")) {
                 document.getElementById("Time").innerHTML = obj["Time"]
             }
-            if (obj.hasOwnProperty("Title")) {
-                document.getElementById("Title").innerHTML = obj["Title"]
-            }
-            if (obj.hasOwnProperty("Model")) {
-                document.getElementById("Model").innerHTML = obj["Model"]
-            }
-            if (obj.hasOwnProperty("Serial")) {
-                document.getElementById("Serial").innerHTML = obj["Serial"]
-            }
-
-            if (obj.hasOwnProperty("SoftwareVersion")) {
-                document.getElementById("SoftwareVersion").innerHTML = obj["SoftwareVersion"]
-            }
-            if (obj.hasOwnProperty("Platform")) {
-                document.getElementById("Platform").innerHTML = obj["Platform"]
-            }
-            if (obj.hasOwnProperty("BluePillReady")) {
-                document.getElementById("BluePillReady").innerHTML = obj["BluePillReady"]
-            }
-            if (obj.hasOwnProperty("MaxClients")) {
-                document.getElementById("MaxClients").innerHTML = obj["MaxClients"]
-            }
-            if (obj.hasOwnProperty("LockedToIPs")) {
-                document.getElementById("LockedToIPs").innerHTML = obj["LockedToIPs"]
-            }
-
-            if (obj.hasOwnProperty("Connections")) {
-                document.getElementById("Connections").innerHTML = obj["Connections"]
-            }
-            if (obj.hasOwnProperty("BootsCount")) {
-                document.getElementById("BootsCount").innerHTML = obj["BootsCount"]
-            }
-            if (obj.hasOwnProperty("TotalUptime")) {
-                document.getElementById("TotalUptime").innerHTML = obj["TotalUptime"];
-            }
-            if (obj.hasOwnProperty("SessionUptime")) {
-                document.getElementById("SessionUptime").innerHTML = obj["SessionUptime"];
-            }
-            if (obj.hasOwnProperty("ScreenSaveOnTime")) {
-                document.getElementById("ScreenSaveOnTime").innerHTML = obj["ScreenSaveOnTime"];
-            }
-
-            if (obj.hasOwnProperty("RDYBSY")) {
-                document.getElementById("RDYBSY").innerHTML = obj["RDYBSY"]
-            }
-            if (obj.hasOwnProperty("Sleeping")) {
-                document.getElementById("Sleeping").innerHTML = obj["Sleeping"]
-            }
-
-            if (obj.hasOwnProperty("CPUState")) {
-                document.getElementById("CPUState").innerHTML = obj["CPUState"]
-            }
-
-            if (obj.hasOwnProperty("ControlBlock")) {
-                document.getElementById("Control").innerHTML = obj["ControlBlock"]
-            }
-            if (obj.hasOwnProperty("SvgIcon")) {
-                document.getElementById("SvgIcon").innerHTML = obj["SvgIcon"]
-            }
-            if (obj.hasOwnProperty("TopologyTable")) {
-                document.getElementById("TopologyTable").innerHTML = obj["TopologyTable"]
-            }
-            if (obj.hasOwnProperty("TopologyJSON")) {
-                document.getElementById("TopologyJSON").innerHTML = obj["TopologyJSON"]
-            }
-
-            if (obj.hasOwnProperty("PanelEvent")) {
-                tableCell = document.getElementById("HWc" + obj["PanelEvent"].HWCID + "_Events");
-                if (tableCell != null) {
-                    tableCell.classList.add('eventReceived');
-                    tableCell.innerHTML = JSON.stringify(obj["PanelEvent"]);
+            if (obj["ZeroconfEntries"] != null) {
+                output = '<table border="0" id="PanelEntries">';
+                output += `<tr class="header">
+                    <td>Model</td>
+                    <td>Serial</td>
+                    <td>IP address</td>
+                    <td>Port</td>
+                    <td>Protocol</td>
+                    <td>Description</td>
+                    <td></td>
+                        </tr>`;
+                for (var i = 0; i < obj["ZeroconfEntries"].length; i++) {
+                    output += '<tr' + (obj["ZeroconfEntries"][i]["Updated"] ? '' : ' class="justAdded"') + '>';
+                    output += '<td>' + obj["ZeroconfEntries"][i]["Model"] + '</td>';
+                    output += '<td>' + obj["ZeroconfEntries"][i]["Serial"] + '</td>';
+                    output += '<td>' + obj["ZeroconfEntries"][i]["IPaddr"] + '</td>';
+                    output += '<td>' + obj["ZeroconfEntries"][i]["Port"] + '</td>';
+                    output += '<td>' + obj["ZeroconfEntries"][i]["Protocol"] + '</td>';
+                    output += '<td>' + obj["ZeroconfEntries"][i]["Name"] + '</td>';
+                    output += '<td><input type="button" value="Connect" onclick="connectTo(\'' + obj["ZeroconfEntries"][i]["IPaddr"] + ':' + obj["ZeroconfEntries"][i]["Port"] + '\');"></td>';
+                    output += '</tr>';
                 }
-
-                objRef = document.getElementById("SVG_HWc" + obj["PanelEvent"].HWCID);
-                if (objRef != null) {
-                    objRef.setAttribute('stroke', 'red');
-                    objRef.setAttribute('stroke-width', '8px');
-                }
-            }
-            if (obj.hasOwnProperty("RWPState")) {
-                setRWPState(obj.RWPState);
-                drawControlBlock();
-            }
-            if (obj.hasOwnProperty("RWPASCIIToPanel")) {
-                document.getElementById("RWPASCIIToPanel").innerHTML = obj["RWPASCIIToPanel"]
-            }
-            if (obj.hasOwnProperty("RWPProtobufToPanel")) {
-                document.getElementById("RWPProtobufToPanel").innerHTML = obj["RWPProtobufToPanel"]
-            }
-            if (obj.hasOwnProperty("RWPJSONToPanel")) {
-                document.getElementById("RWPJSONToPanel").innerHTML = obj["RWPJSONToPanel"]
+                output += '</table>';
+                document.getElementById("PanelEntriesDiv").innerHTML = output
             }
 
             //websocket.close();
@@ -150,6 +72,10 @@
             logToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
         }
 
+        function connectTo(ipAndPort) {
+            doSend(`{"ConnectTo": "` + ipAndPort + `"}`);
+        }
+
         function doSend(message) {
             logToScreen("SENT: " + message);
             websocket.send(message);
@@ -157,437 +83,40 @@
 
         function logToScreen(message) {
             return  // Don't log.
-
-            var pre = document.createElement("pre");
-            pre.style.wordWrap = "break-word";
-            pre.innerHTML = message;
-            output = document.getElementById("Log");
-            output.appendChild(pre);
         }
 
         window.addEventListener("load", init, false);
-
-
-        // Selecting items on SVG:
-        var SelectedHWCs = [];
-        function clickHWC(e, HWCid) {
-            var shiftClick = e.shiftKey
-            e.preventDefault();
-
-            // Empty selection if shift is held down:
-            if (!shiftClick) {
-                clearSelection(SelectedHWCs);
-                SelectedHWCs = [];
-            }
-
-            if (!isElementInArray(SelectedHWCs, HWCid)) {
-                if (!shiftClick) {
-                    SelectedHWCs = [HWCid];
-                } else {
-                    SelectedHWCs[SelectedHWCs.length] = HWCid;
-                }
-
-                // SVG element paint:
-                objRef = document.getElementById("SVG_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.setAttribute('fill', '#eac720');
-                }
-
-                // HTML table row paint:
-                objRef = document.getElementById("Row_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.classList.add('highlight');
-                }
-
-                // Topology JSON element paint:
-                objRef = document.getElementById("Top_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.classList.add('highlight');
-                }
-            } else {
-                if (!shiftClick) {
-                    SelectedHWCs = [];
-                } else {
-                    removeElementFromArray(SelectedHWCs, HWCid);
-                }
-
-                // SVG element paint:
-                objRef = document.getElementById("SVG_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.setAttribute('fill', '#dddddd');
-                }
-
-                // HTML table row paint:
-                objRef = document.getElementById("Row_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.classList.remove('highlight');
-                }
-
-                // Topology JSON element paint:
-                objRef = document.getElementById("Top_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.classList.remove('highlight');
-                }
-            }
-
-            doSend(`{"RequestControlForHWC": ` + HWCid + `}`);
-        }
-        function clearSelection(selection) {
-            for (var i = 0; i < selection.length; i++) {
-                HWCid = selection[i];
-
-                // SVG element paint:
-                objRef = document.getElementById("SVG_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.setAttribute('fill', '#dddddd');
-                }
-
-                // HTML table row paint:
-                objRef = document.getElementById("Row_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.classList.remove('highlight');
-                }
-
-                // Topology JSON element paint:
-                objRef = document.getElementById("Top_HWc" + HWCid);
-                if (objRef != null) {
-                    objRef.classList.remove('highlight');
-                }
-            }
-        }
-        function removeElementFromArray(arr, elementMatch) {
-            for (var i = 0; i < arr.length; i++) {
-                if (arr[i] == elementMatch) {
-                    arr.remove(i)
-                }
-            }
-            return arr
-        }
-        function isElementInArray(arr, elementMatch) {
-            for (var i = 0; i < arr.length; i++) {
-                if (arr[i] == elementMatch) {
-                    return true
-                }
-            }
-            return false
-        }
-        // Array Remove - By John Resig (MIT Licensed)
-        Array.prototype.remove = function (from, to) {
-            var rest = this.slice((to || from) + 1 || this.length);
-            this.length = from < 0 ? this.length + from : from;
-            return this.push.apply(this, rest);
-        };
-
-
-
-        // FEEDBACK:
-        var RWPState;
-        function setRWPState(rwpstate) {
-            RWPState = rwpstate
-
-            if (!RWPState.hasOwnProperty("HWCIDs")) {
-                RWPState["HWCIDs"] = {}
-            }
-
-            if (!RWPState.hasOwnProperty("HWCMode")) {
-                RWPState["HWCMode"] = {}
-            }
-
-            if (!RWPState.hasOwnProperty("HWCColor")) {
-                RWPState["HWCColor"] = {}
-            }
-
-            if (!RWPState.hasOwnProperty("HWCExtended")) {
-                RWPState["HWCExtended"] = {}
-            }
-
-            if (!RWPState.hasOwnProperty("HWCText")) {
-                RWPState["HWCText"] = { "Formatting": 7 }
-            }
-        }
-
-        // Sending the full state as its stored
-        function sendFullState() {
-            RWPState["HWCIDs"] = SelectedHWCs;
-            doSend(JSON.stringify({ "RWPState": RWPState }));
-        }
-
-        // Sending only Mode:
-        function sendMode() {
-            RWPState["HWCIDs"] = SelectedHWCs;
-            doSend(JSON.stringify({ "RWPState": { "HWCIDs": RWPState["HWCIDs"], "HWCMode": RWPState["HWCMode"] } }));
-        }
-
-        // Sending only Color:
-        function sendColor() {
-            RWPState["HWCIDs"] = SelectedHWCs;
-            doSend(JSON.stringify({ "RWPState": { "HWCIDs": RWPState["HWCIDs"], "HWCColor": RWPState["HWCColor"] } }));
-        }
-        function initColorIndex() {
-            if (!RWPState["HWCColor"].hasOwnProperty("ColorIndex") || RWPState["HWCColor"]["ColorIndex"] == null) {
-                RWPState["HWCColor"]["ColorIndex"] = {};
-            }
-            RWPState["HWCColor"]["ColorRGB"] = null;
-        }
-
-        // Sending only Extended:
-        function sendExtended() {
-            RWPState["HWCIDs"] = SelectedHWCs;
-            doSend(JSON.stringify({ "RWPState": { "HWCIDs": RWPState["HWCIDs"], "HWCExtended": RWPState["HWCExtended"] } }));
-        }
-
-        // Sending only Text:
-        function sendText() {
-            RWPState["HWCIDs"] = SelectedHWCs;
-            doSend(JSON.stringify({ "RWPState": { "HWCIDs": RWPState["HWCIDs"], "HWCText": RWPState["HWCText"] } }));
-        }
-
-        // Sending only Image:
-        function sendImage(imgMode) {
-
-            var file = document.getElementById('filename').files[0];
-            var reader = new FileReader();
-            var rawData = new ArrayBuffer();
-            reader.loadend = function () {
-            }
-            reader.onload = function (e) {
-                rawData = e.target.result;
-
-                doSend(JSON.stringify({ "Image_HWCIDs": SelectedHWCs, "ImageMode": imgMode, "ImageData": Array.from(new Uint8Array(rawData)) }));
-            }
-
-            if (file != null) {
-                reader.readAsArrayBuffer(file)
-            } else {
-                doSend(JSON.stringify({ "Image_HWCIDs": SelectedHWCs, "ImageMode": imgMode }));
-            }
-        }
-
-        function rgbToHex(r, g, b) {
-            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-        }
-
-        function hexToRgb(hex) {
-            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            if (result) {
-                var r = parseInt(result[1], 16);
-                var g = parseInt(result[2], 16);
-                var b = parseInt(result[3], 16);
-                return [r, g, b];
-            }
-            return null;
-        }
-        function printColor() {
-            if (RWPState["HWCColor"]["ColorRGB"] != null) {
-                return rgbToHex(RWPState["HWCColor"]["ColorRGB"]["Red"], RWPState["HWCColor"]["ColorRGB"]["Green"], RWPState["HWCColor"]["ColorRGB"]["Blue"])
-            } else {
-                return "#......"
-            }
-        }
-        function convertColorInput(colorInHex) {
-            rgb = hexToRgb(colorInHex);
-            if (rgb != null) {
-                RWPState["HWCColor"]["ColorIndex"] = null;
-                RWPState["HWCColor"]["ColorRGB"] = {
-                    "Red": rgb[0],
-                    "Green": rgb[1],
-                    "Blue": rgb[2]
-                };
-                sendColor();
-            }
-        }
-
-        // Draw Control Block:
-        function drawControlBlock() {
-            output = "";
-
-            if (SelectedHWCs.length > 0) {
-                output += '<b>HWC#' + SelectedHWCs.join(",") + ' State</b><br/>';
-
-                // Mode:
-                output += '<hr/>';
-                output += '<b>Mode:</b><br/>';
-                output += 'State:<br/>';
-                output += '<input type="button" value="Off" onclick="RWPState[\'HWCMode\'][\'State\']=0; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"]["State"] == 0 ? ' class="selected"' : '') + '> ';
-                output += '<input type="button" value="Dimmed" onclick="RWPState[\'HWCMode\'][\'State\']=5; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"]["State"] == 5 ? ' class="selected"' : '') + '> ';
-                output += '<input type="button" value="On" onclick="RWPState[\'HWCMode\'][\'State\']=4; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"]["State"] == 4 ? ' class="selected"' : '') + '> ';
-                output += ' - <input type="button" value="Amber (On)" onclick="RWPState[\'HWCMode\'][\'State\']=1; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"]["State"] == 1 ? ' class="selected"' : '') + '> ';
-                output += '<input type="button" value="Red (On)" onclick="RWPState[\'HWCMode\'][\'State\']=2; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"]["State"] == 2 ? ' class="selected"' : '') + '> ';
-                output += '<input type="button" value="Green (On)" onclick="RWPState[\'HWCMode\'][\'State\']=3; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"]["State"] == 3 ? ' class="selected"' : '') + '> ';
-                output += '<br/>'
-
-                output += 'Output bit:<br/>';
-                output += '<input type="button" value="Off" onclick="RWPState[\'HWCMode\'][\'Output\']=false; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"].hasOwnProperty("Output") && !RWPState["HWCMode"]["Output"] ? ' class="selected"' : '') + '> ';
-                output += '<input type="button" value="On" onclick="RWPState[\'HWCMode\'][\'Output\']=true; sendMode(); drawControlBlock(); return false;"' + (RWPState["HWCMode"]["Output"] ? ' class="selected"' : '') + '> ';
-
-                output += '<br/>'
-                output += 'Blink:<br/>';
-                output += '<select onchange="RWPState[\'HWCMode\'][\'BlinkPattern\']=parseInt(this.options[this.selectedIndex].value); sendMode(); drawControlBlock(); return false;">';
-                output += '<option value="0"' + (RWPState["HWCMode"]["BlinkPattern"] == 0 ? ' selected="selected"' : '') + '></option>';
-                output += '<option value="1"' + (RWPState["HWCMode"]["BlinkPattern"] == 1 ? ' selected="selected"' : '') + '>*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-</option>';
-                output += '<option value="2"' + (RWPState["HWCMode"]["BlinkPattern"] == 2 ? ' selected="selected"' : '') + '>**--**--**--**--**--**--**--**--</option>';
-                output += '<option value="4"' + (RWPState["HWCMode"]["BlinkPattern"] == 4 ? ' selected="selected"' : '') + '>****----****----****----****----</option>';
-                output += '<option value="8"' + (RWPState["HWCMode"]["BlinkPattern"] == 8 ? ' selected="selected"' : '') + '>********--------********--------</option>';
-                output += '<option value="3"' + (RWPState["HWCMode"]["BlinkPattern"] == 3 ? ' selected="selected"' : '') + '>***-***-***-***-***-***-***-***-</option>';
-                output += '<option value="6"' + (RWPState["HWCMode"]["BlinkPattern"] == 6 ? ' selected="selected"' : '') + '>******--******--******--******--</option>';
-                output += '<option value="7"' + (RWPState["HWCMode"]["BlinkPattern"] == 7 ? ' selected="selected"' : '') + '>*******-*******-*******-*******-</option>';
-                output += '<option value="5"' + (RWPState["HWCMode"]["BlinkPattern"] == 5 ? ' selected="selected"' : '') + '>*****-*-*****-*-*****-*-*****-*-</option>';
-                output += '<option value="9"' + (RWPState["HWCMode"]["BlinkPattern"] == 9 ? ' selected="selected"' : '') + '>*********-*-*-*-*********-*-*-*-</option>';
-                output += '<option value="10"' + (RWPState["HWCMode"]["BlinkPattern"] == 10 ? ' selected="selected"' : '') + '>**********--**--**********--**--</option>';
-                output += '<option value="11"' + (RWPState["HWCMode"]["BlinkPattern"] == 11 ? ' selected="selected"' : '') + '>***********-***-***********-***-</option>';
-                output += '<option value="13"' + (RWPState["HWCMode"]["BlinkPattern"] == 13 ? ' selected="selected"' : '') + '>*************-*-*************-*-</option>';
-                output += '<option value="12"' + (RWPState["HWCMode"]["BlinkPattern"] == 12 ? ' selected="selected"' : '') + '>************----************----</option>';
-                output += '<option value="14"' + (RWPState["HWCMode"]["BlinkPattern"] == 14 ? ' selected="selected"' : '') + '>**************--**************--</option>';
-                output += '<option value="15"' + (RWPState["HWCMode"]["BlinkPattern"] == 15 ? ' selected="selected"' : '') + '>***************-***************-</option>';
-                output += '</select>';
-
-                ColorArray = [
-                    ["Default", "#999999", 0],
-                    ["Off", "#000000", 1],
-                    ["White", "#ffffff", 2],
-                    ["Warm", "#f4f5aa", 3],
-                    ["Red (B)", "#d93a25", 4],
-                    ["Rose", "#e79590", 5],
-                    ["Pink", "#dd41fd", 6],
-                    ["Purple", "#ad51ff", 7],
-                    ["Amber (B)", "#ff810b", 8],
-                    ["Yellow (B)", "#feff33", 9],
-                    ["Dark Blue", "#2e3eff", 10],
-                    ["Blue", "#5992ff", 11],
-                    ["Ice", "#acd6ff", 12],
-                    ["Cyan", "#80fcff", 13],
-                    ["Spring (B)", "#c4ff29", 14],
-                    ["Green (B)", "#8dfd29", 15],
-                    ["Mint", "#8efe8c", 16],
-                    ["Light Gray", "#cccccc", 17],
-                    ["Dark Gray", "#666666", 18],
-                ];
-
-                output += '<hr/>';
-                output += '<b>Color:</b><br/>';
-
-                for (var i = 0; i < ColorArray.length; i++) {
-                    output += '<input type="button" style="font-size: 11px; padding: 1 1 1 1; width: 60px; background-color: ' + ColorArray[i][1] + '" value="' + ColorArray[i][0] + '" onclick="initColorIndex(); RWPState[\'HWCColor\'][\'ColorIndex\'][\'Index\']=' + ColorArray[i][2] + '; sendColor(); drawControlBlock(); return false;"' + (RWPState["HWCColor"]["ColorIndex"] != null && RWPState["HWCColor"]["ColorIndex"]["Index"] == ColorArray[i][2] ? ' class="selected"' : '') + '> ';
-                }
-
-                output += '<br/>RGB code: <input id="ColorRGBvalue" type="text" value="' + printColor() + '" onchange="convertColorInput(this.value); return false;"><span type="button" id="colorPicker"> <b>[Pick]</b></span>';
-
-                // Extended value:
-                output += '<hr/>';
-                output += '<b>Extended Return Value:</b><br/>';
-                output += '<select onchange="RWPState[\'HWCExtended\'][\'Interpretation\']=parseInt(this.options[this.selectedIndex].value); sendExtended(); drawControlBlock(); return false;">';
-                output += '<option value="0"' + (RWPState["HWCExtended"]["Interpretation"] == 0 ? ' selected="selected"' : '') + '></option>';
-                output += '<option value="1"' + (RWPState["HWCExtended"]["Interpretation"] == 1 ? ' selected="selected"' : '') + '>Strength</option>';
-                output += '<option value="3"' + (RWPState["HWCExtended"]["Interpretation"] == 3 ? ' selected="selected"' : '') + '>Steps</option>';
-                output += '<option value="4"' + (RWPState["HWCExtended"]["Interpretation"] == 4 ? ' selected="selected"' : '') + '>VU meter</option>';
-                output += '<option value="5"' + (RWPState["HWCExtended"]["Interpretation"] == 5 ? ' selected="selected"' : '') + '>Position</option>';
-                output += '</select>';
-                output += '<input type="text" value="' + parseInt(RWPState["HWCExtended"]["Value"] != null ? RWPState["HWCExtended"]["Value"] : 0) + '" onchange="RWPState[\'HWCExtended\'][\'Value\']=parseInt(this.value); sendExtended(); drawControlBlock(); return false;">';
-
-                // Text:
-                output += '<hr/>';
-                output += '<b>Text:</b><br/>';
-                output += 'Title: <input type="text" value="' + (RWPState["HWCText"]["Title"] != null ? RWPState["HWCText"]["Title"] : "") + '" onchange="RWPState[\'HWCText\'][\'Title\']=this.value; sendText(); drawControlBlock(); return false;">';
-                output += '<input type="checkbox" onchange="RWPState[\'HWCText\'][\'SolidHeaderBar\']=this.checked; sendText(); drawControlBlock(); return false;"' + (RWPState["HWCText"]["SolidHeaderBar"] != null && RWPState["HWCText"]["SolidHeaderBar"] ? " checked" : "") + '> Solid header<br/>';
-
-                output += 'Textline 1: <input type="text" value="' + (RWPState["HWCText"]["Textline1"] != null ? RWPState["HWCText"]["Textline1"] : "") + '" onchange="RWPState[\'HWCText\'][\'Textline1\']=this.value; sendText(); drawControlBlock(); return false;"><br/>';
-                output += 'Textline 2: <input type="text" value="' + (RWPState["HWCText"]["Textline2"] != null ? RWPState["HWCText"]["Textline2"] : "") + '" onchange="RWPState[\'HWCText\'][\'Textline2\']=this.value; RWPState[\'HWCText\'][\'PairMode\']=(this.value==\'\'?0:1); sendText(); drawControlBlock(); return false;"><br/>';
-
-                // Images:
-                output += '<hr/>';
-                output += '<b>Images:</b><br/>';
-                output += '<input type="button" value="B/W" onclick="return sendImage(\'bw\');"> ';
-                output += '<input type="button" value="Gray" onclick="return sendImage(\'gray\');"> ';
-                output += '<input type="button" value="Color" onclick="return sendImage(\'color\');"> ';
-
-                output += '<input type="file" id="filename" /> ';
-
-
-                // Full state
-                output += '<hr/><input type="button" value="Send full state" onclick="return sendFullState();">';
-            }
-
-            document.getElementById("Control").innerHTML = output;
-
-            var picker = new Picker({ parent: document.querySelector('#colorPicker'), color: lastColorSelected, alpha: false, editor: false });
-            picker.onChange = function (color) {
-                lastColorSelected = color.hex.substring(0, 7)
-                convertColorInput(lastColorSelected);
-                document.getElementById("ColorRGBvalue").value = lastColorSelected;
-            };
-
-        }
-        var lastColorSelected = "#000000";
-
-
-        function action_clearAll() {
-            doSend(`{"Command": {"ClearAll":true}}`);
-        }
-        function action_clearLEDs() {
-            doSend(`{"Command": {"ClearLEDs":true}}`);
-        }
-        function action_clearDisplays() {
-            doSend(`{"Command": {"ClearDisplays":true}}`);
-        }
-
-        function action_Sleep(sleep) {
-            doSend(`{"Command": {"SetSleepTimeout":{"Value":` + (sleep * 1000) + `}}}`);
-        }
-        function action_WakeUp() {
-            doSend(`{"Command": {"WakeUp":true}}`);
-        }
-
-        function action_SetBrightness(value) {
-            if (value >= 0) {
-                doSend(`{"Command": {"PanelBrightness":{"OLEDs":` + (value) + `,"LEDs":` + (value) + `}}}`);
-            }
-        }
-        function action_LoadCPU(value) {
-            if (value >= 0) {
-                doSend(`{"Command": {"LoadCPU":{"Level":` + (value) + `}}}`);
-            }
-        }
-
-        function action_FullThrottle() {
-            doSend(`{"FullThrottle": true}`);
-        }
-
     </script>
-    <script src="https://unpkg.com/vanilla-picker@2"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-size: 12px;
         }
 
-        #SvgIcon {}
+        table#PanelEntries {
+            margin-left: auto;
+            margin-right: auto;
+        }
 
-        table#TopologyTable td {
-            padding-left: 5px;
-            padding-right: 5px;
+        table#PanelEntries td {
+            padding-left: 15px;
+            padding-right: 15px;
+            font-size: 14px;
+        }
+
+        table#PanelEntries tr {
             background-color: #dddddd;
         }
 
-        table#TopologyTable tr.header td {
+        table#PanelEntries tr.justAdded {
+            background-color: #c4e5c4;
+        }
+
+        
+
+        table#PanelEntries tr.header td {
             background-color: #cccccc;
             font-weight: bold;
-        }
-
-        table#TopologyTable tr.highlight td {
-            background-color: #eac720;
-        }
-
-        span.highlight {
-            background-color: #eac720;
-        }
-
-        table#TopologyTable tr.mappedOut td {
-            color: #999999;
-            font-style: italic;
-        }
-
-        td.eventReceived {
-            color: rgb(13, 29, 130);
         }
 
         div.container {
@@ -597,254 +126,36 @@
             padding: 20px 20px 20px 20px;
         }
 
-        p.tip {
-            font-size: 10px;
-            font-style: italic;
-        }
-
-
-        input,
-        select,
-        textarea {
+        input[type=button] {
+            background: #cccccc;
+            width: auto;
+            cursor: pointer;
             padding: 4px 4px 4px 4px;
             border-radius: 6px;
             border: 2px solid #cccccc;
         }
 
-        input[type=button] {
-            background: #cccccc;
-            width: auto;
-            cursor: pointer;
-        }
-
-        input[type=button].selected {
-            background-color: rgb(11, 200, 11);
-            border: 2px solid black;
-        }
-
-        input[type=button]:hover {
-            border: 2px solid black;
-        }
-
-        div.pre {
-            padding-top: 4px;
-            padding-bottom: 4px;
-            font-family: 'Courier New', Courier, monospace;
-        }
-
-        div#Control {
-            max-width: 600px;
-        }
-
-        div#Commands {
-            max-width: 600px;
-        }
-
-        div#SvgIcon {
-            text-align: center;
-            max-width: 1200px;
-        }
-
-        svg#ctrlimg {
-            max-height: 1000px;
-        }
-
-        table#topTable {
-            border: 1px solid black;
-        }
-
-        table#topTable td {
-            padding-left: 5px;
-            padding-right: 15px;
+        p.tip {
+            font-size: 10px;
+            font-style: italic;
         }
     </style>
 </head>
 
 <body>
-    <h2>Panel Topology Explorer</h2>
+    <div
+        style="background-color: #00449c; border-radius: 5px; padding-left: 10px; padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">
+        <a href="/"><img src="logoheader.png" height="30"/></a>
+        <img src="kasperwashere.png" height="30" style="float:right;" />
+    </div>
+    <h2>Panels on Network:</h2>
 
     <p>Updated: <span id="Time"></span></p>
 
-    <h3>Panel Info:</h3>
-    <div class="container">
-        <table border="0" cellpadding="0" cellspacing="0" id="topTable">
-            <tr>
-                <td><b>Title:</b></td>
-                <td><span id="Title"></span></td>
-
-                <td><b>S/W version:</b></td>
-                <td><span id="SoftwareVersion"></span></td>
-
-                <td><b>Boot Count:</b></td>
-                <td><span id="BootsCount"></span></td>
-
-                <td><b>Rdy/Bsy:</b></td>
-                <td><span id="RDYBSY"></span></td>
-            </tr>
-            <tr>
-                <td><b>Model:</b></td>
-                <td><span id="Model"></span></td>
-
-                <td><b>Platform:</b></td>
-                <td><span id="Platform"></span></td>
-
-                <td><b>Total Uptime:</b></td>
-                <td><span id="TotalUptime"></span></td>
-
-                <td><b>Sleeping:</b></td>
-                <td><span id="Sleeping"></span></td>
-            </tr>
-            <tr>
-                <td><b>Serial:</b></td>
-                <td><span id="Serial"></span></td>
-
-                <td><b>Blue Pill Ready:</b></td>
-                <td><span id="BluePillReady"></span></td>
-
-                <td><b>Session Uptime:</b></td>
-                <td><span id="SessionUptime"></span></td>
-
-                <td><b>CPU:</b></td>
-                <td><span id="CPUState"></span></td>
-            </tr>
-            <tr>
-                <td><b>Max Clients:</b></td>
-                <td><span id="MaxClients"></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-
-                <td><b>Screen Save On:</b></td>
-                <td><span id="ScreenSaveOnTime"></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-            </tr>
-            <tr>
-                <td><b>Connections:</b></td>
-                <td><span id="Connections"></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-            </tr>
-            <tr>
-                <td><b>Locked to IPs:</b></td>
-                <td><span id="LockedToIPs"></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-
-                <td><b></b></td>
-                <td><span id=""></span></td>
-            </tr>
-        </table>
-        <input type="button" value="Clear All" onclick="action_clearAll(); return false;">
-        <input type="button" value="Clear Disp" onclick="action_clearDisplays(); return false;">
-        <input type="button" value="Clear LEDs" onclick="action_clearLEDs(); return false;">
-        <input type="button" value="Full Throttle" onclick="action_FullThrottle(); return false;">
-        &nbsp;
-        <input type="button" value="Sleep 5s" onclick="action_Sleep(5); return false;">
-        <input type="button" value="Sleep 2m" onclick="action_Sleep(2*60); return false;">
-        <input type="button" value="Sleep 1h" onclick="action_Sleep(60*60); return false;">
-        <input type="button" value="Never" onclick="action_Sleep(0); return false;">
-        <input type="button" value="Wake Up" onclick="action_WakeUp(); return false;">
-        <br />
-
-        <select onchange="action_SetBrightness(this.options[this.selectedIndex].value);">
-            <option value="-1">Brightness:</option>
-            <option value="0">Lowest/Off</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">Medium</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">Full</option>
-        </select>
-
-        <select onchange="action_SetDimmedGain(this.options[this.selectedIndex].value);">
-            <option value="-1">Dimmed Gain:</option>
-            <option value="0">Default</option>
-            <option value="2">2/64</option>
-            <option value="4">4/64</option>
-            <option value="8">8/64</option>
-            <option value="12">12/64</option>
-            <option value="16">16/64 (default)</option>
-            <option value="24">24/64</option>
-            <option value="32">32/64</option>
-        </select>
-
-        <select onchange="action_LoadCPU(this.options[this.selectedIndex].value);">
-            <option value="-1">Load CPU Cores:</option>
-            <option value="0">None</option>
-            <option value="1">25%</option>
-            <option value="2">50%</option>
-            <option value="3">75%</option>
-            <option value="4">100%</option>
-        </select>
+    <div class="container" id="PanelEntriesDiv">
 
     </div>
-    <p class="tip">Various panel information.</p>
-
-    <!-- I love whoever invented html-tables for positioning. It worked on day one, it works today and never failed in the meantime. Who cares about semantics... - KS -->
-    <table border="0" width="100%">
-        <tr>
-            <td valign="top">
-                <h3>Reference SVG Rendering:</h3>
-                <div id="SvgIcon" class="container"></div>
-                <p class="tip">The SVG image above is the reference rendering of panel based on the SVG base and the
-                    topology components listed below. Click any component to see it highlighted in the table (hold shift
-                    for more).</p>
-            </td>
-            <td valign="top">
-                <h3>Panel Communication:</h3>
-                <div id="Control" class="container"></div>
-                <p class="tip">Use this to send various types of feedback to the connected panel.</p>
-
-                <div id="Commands" class="container">
-                    <b>Raw Panel ASCII Command sequence (v1):</b></br>
-                    <pre id="RWPASCIIToPanel"></pre>
-
-                    <b>Raw Panel ASCII JSON (v2):</b></br>
-                    <div id="RWPJSONToPanel" class="pre"></div>
-
-                    <b>Raw Panel Binary Protobuf command:</b></br>
-                    <div id="RWPProtobufToPanel" class="pre"></div>
-                </div>
-                <p class="tip">These are the various encodings of the sent command.</p>
-            </td>
-        </tr>
-    </table>
-
-    <h3>Topology Summary:</h3>
-    <div id="TopologyTable" class="container"></div>
-    <p class="tip">The topology summary is a friendly overview of the features of individual hardware components (HWCs)
-        on the panel. It's compiled from the topology json structure. Click the rows to highlight the component in both
-        the json-structure and on the controller. Shift click to select more.</p>
-
-
-    <h3>Topology JSON:</h3>
-    <div class="container">
-        <pre id="TopologyJSON"></pre>
-    </div>
-    <p class="tip">The topology json is the authoritative description of the panels hardware components. This includes
-        not only their capabilities in terms of triggers (In) and feedback (Out, Ext, Disp) but also how they should
-        render on a visual representation.</p>
-
-    <h3>Log:</h3>
-    <div id="Log" class="container"></div>
-    <p class="tip">This is a log of the communication between this webpage and the PanelTopology websocket server.</p>
-
+    <p class="tip">Panels found on the network. Click one to connect to it.</p>
 </body>
 
 </html>
