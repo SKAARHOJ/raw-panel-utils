@@ -617,7 +617,7 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 								HWC:    int(Event.HWCID),
 								Type:   "binary",
 								Action: su.Qstr(Event.Binary.Pressed, "Down", "Up"),
-								Edge:   su.Qint(Event.Binary.Edge == 0, 4, int(Event.Binary.Edge)),
+								Edge:   su.Qint(Event.Binary.Edge == 0, 4, su.Qint(Event.Binary.Edge == 16, 4, int(Event.Binary.Edge))),
 							}
 							if recordMode {
 								burningData.Events = append(burningData.Events, incomingEvent)

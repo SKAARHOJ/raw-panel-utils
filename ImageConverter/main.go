@@ -25,7 +25,7 @@ func main() {
 	// Setting up and parsing command line parameters
 	wxh := flag.String("WxH", "", "The width x height of the encoded image. Default is to use the same dimensions as the input image.")
 	scaling := flag.String("scaling", "", "Specifies how the input image will be fitted into the dimensions of WxH: 'Fit' will scale the image so everything is shown but with pillar/letter box, 'Fill' will scale the image so all pixels are filled but the image may be cropped, 'Stretch' will scale the image so all pixels as filled but image may be distorted in dimensions. Default is to show pixels 1:1")
-	encoding := flag.String("encoding", "", "Specifies if the image should be encoder as Grayscale ('Gray') or RGB image ('RGB')")
+	encoding := flag.String("encoding", "", "Specifies if the image should be encoded as Grayscale ('Gray') or RGB image ('RGB')")
 	pureJsonOutput := flag.Bool("pureJSON", false, "If set, the output is pure JSON and not additional comments or explanations. (Useful for automated conversions).")
 	hwcNumber := flag.Int("HWC", 99999, "HWC number to use in state message")
 	flag.Parse()

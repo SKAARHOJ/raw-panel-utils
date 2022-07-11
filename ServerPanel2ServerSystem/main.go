@@ -359,7 +359,7 @@ func main() {
 	systemIPAndPort := string(arguments[1])
 
 	// Welcome message!
-	fmt.Println("Welcome to Raw Panel - Server Panel 2 Server System! Made by Kasper Skaarhoj (c) 2020-2022")
+	fmt.Println("Welcome to Raw Panel - Server Panel to Server System! Made by Kasper Skaarhoj (c) 2020-2022")
 	fmt.Println("Configuration:")
 	fmt.Println("  binPanel:  ", *binPanel)
 	fmt.Println("  binSystem: ", *binSystem)
