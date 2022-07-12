@@ -20,6 +20,7 @@ import (
 )
 
 var PanelToSystemMessages *bool
+var writeTopologiesToFiles *bool
 
 func main() {
 
@@ -33,6 +34,7 @@ func main() {
 	// Setting up and parsing command line parameters
 	//binPanel := flag.Bool("binPanel", false, "Works with the panel in binary mode")
 	PanelToSystemMessages = flag.Bool("panelToSystemMessages", false, "If set, you will see panel to system messages written to the console")
+	writeTopologiesToFiles = flag.Bool("writeTopologiesToFiles", false, "If set, the JSON, SVG and rendered full SVG icon is written to files in the working directory.")
 	flag.Parse()
 
 	arguments := flag.Args()

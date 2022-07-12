@@ -471,21 +471,23 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 				topJson = strings.Join(topJsonPartsBegin, "\n    {\n")
 				//fmt.Println(topJson)
 
-				// Process it...
-				f, _ := os.Create("_topologySVGIconFullRender.svg")
-				f.WriteString(svgIcon)
-				f.Sync()
-				f.Close()
+				if *writeTopologiesToFiles {
+					// Process it...
+					f, _ := os.Create("_topologySVGIconFullRender.svg")
+					f.WriteString(svgIcon)
+					f.Sync()
+					f.Close()
 
-				f, _ = os.Create("_topology.svg")
-				f.WriteString(topologySVG)
-				f.Sync()
-				f.Close()
+					f, _ = os.Create("_topology.svg")
+					f.WriteString(topologySVG)
+					f.Sync()
+					f.Close()
 
-				f, _ = os.Create("_topology.json")
-				f.WriteString(string(s))
-				f.Sync()
-				f.Close()
+					f, _ = os.Create("_topology.json")
+					f.WriteString(string(s))
+					f.Sync()
+					f.Close()
+				}
 
 				lastStateMu.Lock()
 				lastState.SvgIcon = svgIcon

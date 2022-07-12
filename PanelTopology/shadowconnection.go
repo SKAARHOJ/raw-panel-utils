@@ -149,10 +149,12 @@ func connectToShadowPanel(panelIPAndPort string, incoming chan []*rwp.InboundMes
 
 									s, _ := json.MarshalIndent(shadowPanelTopologyData, "", "  ")
 
-									f, _ := os.Create("_topology(Shadow).json")
-									defer f.Close()
-									f.WriteString(string(s))
-									f.Sync()
+									if *writeTopologiesToFiles {
+										f, _ := os.Create("_topology(Shadow).json")
+										defer f.Close()
+										f.WriteString(string(s))
+										f.Sync()
+									}
 								}
 							}
 							if msg.FlowMessage == 1 { // Ping:
