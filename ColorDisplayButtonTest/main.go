@@ -247,21 +247,6 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 				},
 			}
 
-			// TEMPORARY because there is an issue with it! Remove when brightness works when set in first package (KS)
-			go func() {
-				time.Sleep(time.Second * 1)
-				incoming <- []*rwp.InboundMessage{
-					{
-						Command: &rwp.Command{
-							PanelBrightness: &rwp.Brightness{
-								OLEDs: uint32(*brightness),
-								LEDs:  uint32(*brightness),
-							},
-						},
-					},
-				}
-			}()
-
 			if *fullPowerStartUp {
 				log.Println("Setting Full Power Startup")
 				allHWCs := []uint32{}
