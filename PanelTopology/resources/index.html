@@ -53,7 +53,7 @@
                     output += '<tr' + (obj["ZeroconfEntries"][i]["Updated"] ? '' : ' class="justAdded"') + '>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Model"] + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Serial"] + '</td>';
-                    output += '<td>' + obj["ZeroconfEntries"][i]["IPaddr"] + '</td>';
+                    output += '<td><a href="http://'+obj["ZeroconfEntries"][i]["IPaddr"]+'" target="_blank">' + obj["ZeroconfEntries"][i]["IPaddr"] + '</a></td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Port"] + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Protocol"] + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Name"] + '</td>';
@@ -138,6 +138,10 @@
         p.tip {
             font-size: 10px;
             font-style: italic;
+        }
+
+        a {
+            color: black;
         }
     </style>
 </head>
