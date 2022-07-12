@@ -775,7 +775,7 @@ func main() {
 	verboseI := flag.Int("verboseIncoming", 0, "Verbose input messages to panel (default is none shown). 1=Low intensity, 2=Higher intensity (protobuf messages as JSON)")
 	autoInterval := flag.Int("autoInterval", 100, "Interval in ms for demo engine sending out content")
 	exclusiveHWClist := flag.String("exclusiveHWClist", "", "Comma separated list of HWC numbers to test exclusively")
-	demoModeDelay := flag.Int("demoModeDelay", 10, "The number of seconds before demo mode starts after having manually operated a panel. Zero will disable demo mode.")
+	demoModeDelay := flag.Int("demoModeDelay", 5, "The number of seconds before demo mode starts after having manually operated a panel. Zero will disable demo mode.")
 	demoModeImgsOnly := flag.Bool("demoModeImgsOnly", false, "If set, only images will be cycled to displays in demo mode")
 	demoModeFaders := flag.Bool("demoModeFaders", false, "Exercise motorized faders continuously in demo mode.")
 	analogProfiling := flag.Bool("analogProfiling", false, "If set, will track raw analog performance into CSV file and HTML pages in folder ColorDisplayButtonTest/")
