@@ -532,6 +532,12 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					}
 				}
 
+				// Will only happen if analog profiling is enabled:
+				if msg.SysStat != nil {
+					procesSysStatValues(panelNum, msg.SysStat)
+					continue
+				}
+
 				// Check events:
 				if msg.Events != nil {
 
@@ -548,12 +554,6 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 							if inList(int(Event.HWCID), exclusiveList) {
 								activeHWCs = append(activeHWCs, uint32(Event.HWCID))
 							}
-						}
-
-						// Will only happen if analog profiling is enabled:
-						if Event.SysStat != nil {
-							procesSysStatValues(panelNum, Event)
-							continue
 						}
 
 						// Will only happen if analog profiling is enabled:

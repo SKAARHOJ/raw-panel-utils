@@ -39,14 +39,16 @@ var CPURoundRobinSize = 5
 var CPUDataPoints = make(map[int][]CPUAnalogDataPoint)
 var CPUAnalogRoundRobin = make(map[int][]CPUAnalogEventData)
 
-func procesSysStatValues(panelNum int, Event *rwp.HWCEvent) {
+func procesSysStatValues(panelNum int, SysStat *rwp.SystemStat) {
 	//log.Println(log.Indent(Event))
 
 	DataPointsMU.Lock()
 	defer DataPointsMU.Unlock()
 
+	currentTimeMillis := uint32(time.Now().UnixNano() / int64(time.Millisecond))
+
 	if _, exists := StartTimestamp[panelNum]; !exists {
-		StartTimestamp[panelNum] = Event.Timestamp
+		StartTimestamp[panelNum] = currentTimeMillis
 	}
 
 	// Check and create maps:
@@ -60,9 +62,9 @@ func procesSysStatValues(panelNum int, Event *rwp.HWCEvent) {
 	// Add to round robin or elevate to datapoint:
 	if len(CPUAnalogRoundRobin[panelNum]) < CPURoundRobinSize {
 		CPUAnalogRoundRobin[panelNum] = append(CPUAnalogRoundRobin[panelNum], CPUAnalogEventData{
-			CPUtemp:   Event.SysStat.CPUTemp,
-			CPUusage:  Event.SysStat.CPUUsage,
-			timestamp: Event.Timestamp,
+			CPUtemp:   SysStat.CPUTemp,
+			CPUusage:  SysStat.CPUUsage,
+			timestamp: currentTimeMillis,
 		})
 	} else {
 		aDP := CPUAnalogDataPoint{sampleWidth: 0xFFFFFFFF}

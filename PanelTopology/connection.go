@@ -412,23 +412,23 @@ func getTopology(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					}
 				}
 
+				if msg.SysStat != nil {
+					wsslice.Iter(func(w *wsclient) {
+						w.msgToClient <- &wsToClient{
+							CPUState: fmt.Sprintf("%.1fC, %d%%, %dMHz", msg.SysStat.CPUTemp, msg.SysStat.CPUUsage, msg.SysStat.CPUFreqCurrent/1000),
+						}
+					})
+				}
+
 				if msg.Events != nil {
 					for _, Event := range msg.Events {
-						if Event.SysStat != nil {
-							wsslice.Iter(func(w *wsclient) {
-								w.msgToClient <- &wsToClient{
-									CPUState: fmt.Sprintf("%.1fC, %d%%, %dMHz", Event.SysStat.CPUTemp, Event.SysStat.CPUUsage, Event.SysStat.CPUFreqCurrent/1000),
-								}
-							})
-						} else {
-							eventMessage := &wsToClient{
-								PanelEvent: Event,
-								Time:       getTimeString(),
-							}
-							wsslice.Iter(func(w *wsclient) { w.msgToClient <- eventMessage })
-
-							eventPlot(Event)
+						eventMessage := &wsToClient{
+							PanelEvent: Event,
+							Time:       getTimeString(),
 						}
+						wsslice.Iter(func(w *wsclient) { w.msgToClient <- eventMessage })
+
+						eventPlot(Event)
 					}
 				}
 			}
