@@ -3,6 +3,9 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"log"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -31,4 +34,22 @@ func getDisplay(hwc uint32) *topology.TopologyHWcTypeDef_Display {
 		}
 	}
 	return nil
+}
+
+func openBrowser(url string) {
+	var err error
+
+	switch runtime.GOOS {
+	case "linux":
+		_, err = exec.Command("xdg-open", url).CombinedOutput()
+	case "windows":
+		_, err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).CombinedOutput()
+	case "darwin":
+		_, err = exec.Command("open", url).CombinedOutput()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
 }

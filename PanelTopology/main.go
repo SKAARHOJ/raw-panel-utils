@@ -14,6 +14,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"time"
 
 	rwp "github.com/SKAARHOJ/rawpanel-lib/ibeam_rawpanel"
 	log "github.com/s00500/env_logger"
@@ -40,9 +41,14 @@ func main() {
 	arguments := flag.Args()
 
 	// Start webserver:
-	log.Infoln("Starting server on :8080")
+	port := 8080
+	log.Infof("Starting server on localhost:%d\n", port)
 	setupRoutes()
-	go http.ListenAndServe(":8080", nil)
+	go http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	go func() {
+		time.Sleep(time.Millisecond * 500)
+		openBrowser(fmt.Sprintf("http://localhost:%d", port))
+	}()
 
 	wsslice = threadSafeSlice{}
 
