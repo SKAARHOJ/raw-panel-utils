@@ -26,9 +26,13 @@ func main() {
 	wxh := flag.String("WxH", "", "The width x height of the encoded image. Default is to use the same dimensions as the input image.")
 	scaling := flag.String("scaling", "", "Specifies how the input image will be fitted into the dimensions of WxH: 'Fit' will scale the image so everything is shown but with pillar/letter box, 'Fill' will scale the image so all pixels are filled but the image may be cropped, 'Stretch' will scale the image so all pixels as filled but image may be distorted in dimensions. Default is to show pixels 1:1")
 	encoding := flag.String("encoding", "", "Specifies if the image should be encoded as Grayscale ('Gray') or RGB image ('RGB')")
-	pureJsonOutput := flag.Bool("pureJSON", false, "If set, the output is pure JSON and not additional comments or explanations. (Useful for automated conversions).")
+	output := flag.String("output", "", "Default is ASCII Raw Panel output. Use value 'JSON' for JSON output, 'C' for C output.")
+	writePng := flag.Bool("png", false, "If set, the output is written back to a PNG file named 'ImageConverter_output.png' for validation purposes.")
+	invert := flag.Bool("invert", false, "Inverts Monochrome images")
 	hwcNumber := flag.Int("HWC", 99999, "HWC number to use in state message")
 	flag.Parse()
+
+	pureJsonOutput := *output == "JSON"
 
 	arguments := flag.Args()
 	if len(arguments) == 0 {
@@ -39,7 +43,7 @@ func main() {
 	}
 
 	// Welcome message!
-	if !*pureJsonOutput {
+	if !pureJsonOutput {
 		fmt.Println("Image Converter to Raw Panel! Made by Kasper Skaarhoj (c) 2022")
 	}
 
@@ -99,7 +103,42 @@ func main() {
 	// JSON encoded
 	jsonBytes, _ := json.Marshal(state)
 
-	if !*pureJsonOutput {
+	// PNG:
+	if *writePng {
+		pngBytes, err := helpers.ConvertGfxStateToPngBytes(state)
+		log.Must(err)
+		err = os.WriteFile("ImageConverter_output.png", pngBytes, 0644)
+		log.Must(err)
+	}
+
+	switch *output {
+	case "JSON":
+		fmt.Println(string(jsonBytes))
+	case "C":
+		fmt.Println("")
+		fmt.Println("Image encoded for inclusion in C++ code:")
+		fmt.Println("---------------------------------------------------------------------------------------")
+
+		bytesPerLine := len(state.HWCGfx.ImageData) / int(state.HWCGfx.H)
+		fmt.Println("TEST:", bytesPerLine, len(state.HWCGfx.ImageData)%int(state.HWCGfx.H))
+		fmt.Printf("{ // Image %s, dimensions %dx%d", arguments[0], int(state.HWCGfx.W), int(state.HWCGfx.H))
+		for i, byteValue := range state.HWCGfx.ImageData {
+			if i%bytesPerLine == 0 {
+				fmt.Print("\n\t")
+			}
+
+			switch state.HWCGfx.ImageType {
+			case rwp.HWCGfx_MONO:
+				if *invert {
+					byteValue = byteValue ^ 0xff
+				}
+				fmt.Printf("0b%d%d%d%d%d%d%d%d, ", (byteValue>>7)&1, (byteValue>>6)&1, (byteValue>>5)&1, (byteValue>>4)&1, (byteValue>>3)&1, (byteValue>>2)&1, (byteValue>>1)&1, (byteValue>>0)&1)
+			default:
+				fmt.Printf("0x%x%x, ", byteValue>>4, byteValue&0xF)
+			}
+		}
+		fmt.Println("\n---------------------------------------------------------------------------------------")
+	default:
 		fmt.Println("")
 		fmt.Println("Image encoded as Raw Panel ASCII images over multiple messages:")
 		fmt.Println("---------------------------------------------------------------------------------------")
@@ -107,11 +146,6 @@ func main() {
 			fmt.Println(line)
 		}
 		fmt.Println("---------------------------------------------------------------------------------------")
-		fmt.Println("")
-
-		fmt.Printf("Image encoded as a single ASCII transmissible JSON message (%d bytes):\n", len(jsonBytes))
-		fmt.Println("---------------------------------------------------------------------------------------")
 	}
 
-	fmt.Println(string(jsonBytes))
 }
