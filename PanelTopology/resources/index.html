@@ -47,17 +47,30 @@
                     <td>Port</td>
                     <td>Protocol</td>
                     <td>Description</td>
+                    <td>skaarOS</td>
+                    <td>Ping</td>
+                    <td></td>
+                    <td></td>
                     <td></td>
                         </tr>`;
+
                 for (var i = 0; i < obj["ZeroconfEntries"].length; i++) {
-                    output += '<tr' + (obj["ZeroconfEntries"][i]["Updated"] ? '' : ' class="justAdded"') + '>';
+                    console.log(obj["ZeroconfEntries"][i]["RawPanelDetails"])
+
+                    output += '<tr' + (obj["ZeroconfEntries"][i]["IsNew"] ? ' class="justAdded"' : '') + '>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Model"] + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Serial"] + '</td>';
-                    output += '<td><a href="http://'+obj["ZeroconfEntries"][i]["IPaddr"]+'" target="_blank">' + obj["ZeroconfEntries"][i]["IPaddr"] + '</a></td>';
-                    output += '<td>' + obj["ZeroconfEntries"][i]["Port"] + '</td>';
+                    output += '<td><a href="http://' + obj["ZeroconfEntries"][i]["IPaddr"] + '" target="_blank">' + obj["ZeroconfEntries"][i]["IPaddr"] + '</a></td>';
+                    output += '<td>' + (obj["ZeroconfEntries"][i]["Port"] != -1 ? obj["ZeroconfEntries"][i]["Port"] : '') + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Protocol"] + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Name"] + '</td>';
-                    output += '<td><input type="button" value="Connect" onclick="connectTo(\'' + obj["ZeroconfEntries"][i]["IPaddr"] + ':' + obj["ZeroconfEntries"][i]["Port"] + '\');"></td>';
+                    output += '<td>' + obj["ZeroconfEntries"][i]["SkaarOS"] + '</td>';
+                    output += '<td>' + (obj["ZeroconfEntries"][i]["PingTime"]>-1 ? obj["ZeroconfEntries"][i]["PingTime"] + 'ms' : '') + '</td>';
+                    output += '<td>' + (obj["ZeroconfEntries"][i]["Port"] != -1 ? '<input type="button" value="Connect" onclick="connectTo(\'' + obj["ZeroconfEntries"][i]["IPaddr"] + ':' + obj["ZeroconfEntries"][i]["Port"] + '\');">' : '') + '</td>';
+
+                    output += '<td>' + (obj["ZeroconfEntries"][i]["RawPanelDetails"] != null && obj["ZeroconfEntries"][i]["RawPanelDetails"]["PanelTopologySVG"] ? obj["ZeroconfEntries"][i]["RawPanelDetails"]["PanelTopologySVG"] + '<br/><span style="font-size: 10px;">HWC count: ' + obj["ZeroconfEntries"][i]["RawPanelDetails"]["TotalHWCs"] : "") + '</span></td>';
+                    output += '<td>' + (obj["ZeroconfEntries"][i]["RawPanelDetails"] != null ? renderRWPderivedInfoTable(obj["ZeroconfEntries"][i]["RawPanelDetails"]) : "") + '</td>';
+
                     output += '</tr>';
                 }
                 output += '</table>';
@@ -66,6 +79,55 @@
 
             //websocket.close();
             logToScreen('<span style="color: blue;">RESPONSE: ' + evt.data + '</span><br/>');
+        }
+
+        function renderRWPderivedInfoTable(rwDetails) {
+            if (rwDetails["ErrorMsg"] != "") {
+                return '<span style="color:red">' + rwDetails["ErrorMsg"] + '</span>';
+            }
+
+            output = '';
+            if (rwDetails["Msg"] != "") {
+                output += rwDetails["Msg"];
+            }
+            output += '<table border="0" class="rpDetails' + (rwDetails["Platform"] == "ibeam" ? " platformBluePill" : " platformOther") + '">';
+            output += `<tr>
+                        <td class="header" style="font-size: 10px;">Model/Serial/Ver:</td>
+                        <td style="font-size: 10px;` + (rwDetails["SerialModelError"] ? ` color:red;` : ``) + `">` + rwDetails["Model"] + ` / ` + rwDetails["Serial"] + ` / ` + rwDetails["SoftwareVersion"] + `</td>
+                    </tr>`;
+            output += `<tr>
+                        <td class="header" style="font-size: 10px;">Platform / BP Ready:</td>
+                        <td style="font-size: 10px;">` + (rwDetails["Platform"] ? rwDetails["Platform"] : "-") + ` / ` + (rwDetails["BluePillReady"] ? rwDetails["BluePillReady"] : "-") + `</td>
+                    </tr>`;
+            output += `<tr>
+                        <td class="header" style="font-size: 10px;">Friendly Name:</td>
+                        <td style="font-size: 10px;">` + rwDetails["FriendlyName"] + `</td>
+                    </tr>`;
+            output += `<tr>
+                        <td class="header" style="font-size: 10px;">Max Clients / Lock To IPs:</td>
+                        <td style="font-size: 10px;">` + (rwDetails["MaxClients"] ? rwDetails["MaxClients"] : "-") + ` / ` + (rwDetails["LockedToIPs"] ? rwDetails["LockedToIPs"] : "-") + `</td>
+                    </tr>`;
+            output += `<tr>
+                        <td class="header" style="font-size: 10px;">Current Connections:</td>
+                        <td style="font-size: 10px;">` + (rwDetails["Connections"] ? rwDetails["Connections"] : "-") + `</td>
+                    </tr>`;
+            output += `<tr>
+                        <td class="header" style="font-size: 10px;">Boots/Session/Uptime/Sleep:</td>
+                        <td style="font-size: 10px;">` + (rwDetails["BootsCount"] ? rwDetails["BootsCount"] : "-") + ` / ` + (rwDetails["SessionUptime"] ? rwDetails["SessionUptime"] : "-") + ` / ` + (rwDetails["TotalUptime"] ? rwDetails["TotalUptime"] : "-") + ` / ` + (rwDetails["ScreenSaveOnTime"] ? rwDetails["ScreenSaveOnTime"] : "-") + `</td>
+                    </tr>`;
+            output += `<tr>
+                        <td class="header" style="font-size: 10px;">Stats retrieval time:</td>
+                        <td style="font-size: 10px;` + (rwDetails["DeltaTime"] >= 20000 ? ` color:red;` : ``) + `">` + (rwDetails["DeltaTime"] ? rwDetails["DeltaTime"] + 'ms' : '') + `</td>
+                    </tr>`;
+            output += '</table>';
+
+            if (rwDetails["BinaryConnection"]) {
+                output += '<span style="background-color: black; color: white; padding: 3px 3px 3px 3px; font-size: 9px; border-radius:4px;">BINARY</span>';
+            } else {
+                output += '<span style="background-color: #666666; color: white; padding: 3px 3px 3px 3px; font-size: 9px; border-radius:4px;">ASCII</span>';
+            }
+
+            return output;
         }
 
         function onError(evt) {
@@ -93,15 +155,27 @@
             font-size: 12px;
         }
 
+        table.rpDetails td.header {
+            font-weight: bold;
+        }
+
         table#PanelEntries {
             margin-left: auto;
             margin-right: auto;
         }
 
         table#PanelEntries td {
-            padding-left: 15px;
-            padding-right: 15px;
-            font-size: 14px;
+            padding-left: 5px;
+            padding-right: 5px;
+            font-size: 12px;
+        }
+
+        .platformOther {
+            background-color: #838383
+        }
+
+        .platformBluePill {
+            background-color: #3e89eb
         }
 
         table#PanelEntries tr {
@@ -111,8 +185,6 @@
         table#PanelEntries tr.justAdded {
             background-color: #c4e5c4;
         }
-
-        
 
         table#PanelEntries tr.header td {
             background-color: #cccccc;
@@ -149,7 +221,7 @@
 <body>
     <div
         style="background-color: #00449c; border-radius: 5px; padding-left: 10px; padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">
-        <a href="/"><img src="logoheader.png" height="30"/></a>
+        <a href="/"><img src="logoheader.png" height="30" /></a>
         <img src="kasperwashere.png" height="30" style="float:right;" />
     </div>
     <h2>Panels on Network:</h2>
@@ -159,7 +231,7 @@
     <div class="container" id="PanelEntriesDiv">
 
     </div>
-    <p class="tip">Panels found on the network. Click one to connect to it.</p>
+    <p class="tip">SKAARHOJ devices found on the network.</p>
 </body>
 
 </html>
