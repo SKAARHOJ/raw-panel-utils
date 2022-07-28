@@ -22,12 +22,13 @@ import (
 
 var PanelToSystemMessages *bool
 var writeTopologiesToFiles *bool
+var AggressiveQuery *bool
 
 func main() {
 
 	// Welcome message!
 	fmt.Println("Welcome to Raw Panel Topology Explorer made by Kasper Skaarhoj (c) 2021-2022")
-	fmt.Println("Open a Web Browser on localhost:8080 to explore the topology interactively.")
+	fmt.Println("Opens a Web Browser on localhost:8080 to explore the topology interactively.")
 	fmt.Println("usage: [options] [panelIP:port] [Shadow panelIP:port]")
 	fmt.Println("-h for help")
 	fmt.Println()
@@ -36,6 +37,8 @@ func main() {
 	//binPanel := flag.Bool("binPanel", false, "Works with the panel in binary mode")
 	PanelToSystemMessages = flag.Bool("panelToSystemMessages", false, "If set, you will see panel to system messages written to the console")
 	writeTopologiesToFiles = flag.Bool("writeTopologiesToFiles", false, "If set, the JSON, SVG and rendered full SVG icon is written to files in the working directory.")
+	dontOpenBrowser := flag.Bool("dontOpenBrowser", false, "If set, a web browser won't open automatically")
+	AggressiveQuery = flag.Bool("aggressive", false, "If set, will connect to panels, query various info and disconnect.")
 	flag.Parse()
 
 	arguments := flag.Args()
@@ -45,10 +48,13 @@ func main() {
 	log.Infof("Starting server on localhost:%d\n", port)
 	setupRoutes()
 	go http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
-	go func() {
-		time.Sleep(time.Millisecond * 500)
-		openBrowser(fmt.Sprintf("http://localhost:%d", port))
-	}()
+
+	if !(*dontOpenBrowser) {
+		go func() {
+			time.Sleep(time.Millisecond * 500)
+			openBrowser(fmt.Sprintf("http://localhost:%d", port))
+		}()
+	}
 
 	wsslice = threadSafeSlice{}
 
