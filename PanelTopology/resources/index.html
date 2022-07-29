@@ -6,7 +6,7 @@
     <title>Topology Explorer - Panel Index</title>
     <script language="javascript" type="text/javascript">
 
-        var wsUri = "ws://127.0.0.1:8080/ws";
+        var wsUri = "ws://" + location.host + "/ws";
 
         function init() {
             setUpWebSocket();
@@ -65,7 +65,7 @@
                     output += '<td>' + obj["ZeroconfEntries"][i]["Protocol"] + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["Name"] + '</td>';
                     output += '<td>' + obj["ZeroconfEntries"][i]["SkaarOS"] + '</td>';
-                    output += '<td>' + (obj["ZeroconfEntries"][i]["PingTime"]>-1 ? obj["ZeroconfEntries"][i]["PingTime"] + 'ms' : '') + '</td>';
+                    output += '<td>' + (obj["ZeroconfEntries"][i]["PingTime"] > -1 ? obj["ZeroconfEntries"][i]["PingTime"] + 'ms' : '') + '</td>';
                     output += '<td>' + (obj["ZeroconfEntries"][i]["Port"] != -1 ? '<input type="button" value="Connect" onclick="connectTo(\'' + obj["ZeroconfEntries"][i]["IPaddr"] + ':' + obj["ZeroconfEntries"][i]["Port"] + '\');">' : '') + '</td>';
 
                     output += '<td>' + (obj["ZeroconfEntries"][i]["RawPanelDetails"] != null && obj["ZeroconfEntries"][i]["RawPanelDetails"]["PanelTopologySVG"] ? obj["ZeroconfEntries"][i]["RawPanelDetails"]["PanelTopologySVG"] + '<br/><span style="font-size: 10px;">HWC count: ' + obj["ZeroconfEntries"][i]["RawPanelDetails"]["TotalHWCs"] : "") + '</span></td>';

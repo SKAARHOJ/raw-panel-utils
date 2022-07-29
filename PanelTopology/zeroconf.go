@@ -147,7 +147,7 @@ func zeroconfSearchSession(sessionId int) {
 	ZeroconfEntriesMu.Lock()
 	for a := len(ZeroconfEntries); a > 0; a-- {
 		i := a - 1
-		if ZeroconfEntries[i].SessionId+1 < sessionId {
+		if sessionId-ZeroconfEntries[i].SessionId > 4 {
 			ZeroconfEntries = append(ZeroconfEntries[:i], ZeroconfEntries[i+1:]...)
 			UpdateWS.Store(true)
 		}
@@ -355,7 +355,7 @@ func sortEntries(zEntries []*ZeroconfEntry) []*ZeroconfEntry {
 // Connects to a panel, asks for information, then disconnects
 func rawPanelInquery(newEntry *ZeroconfEntry) {
 
-	// "Lock it" for aggressive search:
+	// Mark entry for aggressive search:
 	newEntry.Lock()
 	newEntry.AggressiveQueryStarted = true
 	newEntry.Unlock()
@@ -365,17 +365,25 @@ func rawPanelInquery(newEntry *ZeroconfEntry) {
 	ownIPusedToConnect := ""
 	wasConnected := false
 
-	// Setting up channels etc.
+	// Context for cancelling the connection
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Channels for IO with panel: It must be buffered at least 1 (good for testing!), but higher buffer performs better
+	// Notice that IF you stop reading the msgsFromPanel channel prematurely (before ondisconnect is fired) you may get locked up in the logic inside ConnectToPanel that is in charge of shutting it down - and the waitGroup may wait forever! (See implementation below.)
 	msgsToPanel := make(chan []*rwp.InboundMessage, 10)
-	msgsFromPanel := make(chan []*rwp.OutboundMessage, 10)
-	//defer close(msgsToPanel)		// TODO: I want to enable the wait groups and close these channels, but it won't work because of an unsolved by in ConnectToPanel where the ctx.Done() that closes the conn does NOT lead to the reading to cancel. This happens with the ASCII reader...
-	//defer close(msgsFromPanel)	// TODO: I want to enable the wait groups and close these channels, but it won't work because of an unsolved by in ConnectToPanel where the ctx.Done() that closes the conn does NOT lead to the reading to cancel. This happens with the ASCII reader...
+	msgsFromPanel := make(chan []*rwp.OutboundMessage, 50)
+	defer close(msgsToPanel)
+	defer close(msgsFromPanel)
+
+	// WaitGroup to use to make sure we get cleaned up after exit with context.
 	var wg sync.WaitGroup
 
-	// Set empty to make sure another session wont start another proces:
+	// Init struct to gather raw panel details in:
 	rpDetails := &RawPanelDetails{}
+
+	// Use this channel to signal disconnect
+	socketDisconnected := make(chan bool)
 
 	// On-connect function - asking for a bunch of things...:
 	onconnect := func(errorMsg string, binary bool, c net.Conn) {
@@ -409,8 +417,14 @@ func rawPanelInquery(newEntry *ZeroconfEntry) {
 			}
 		}
 	}
-	ondisconnect := func() {
-		fmt.Printf("Disconnected from %s\n", panelIPAndPort)
+
+	ondisconnect := func(exit bool) {
+		fmt.Printf("Disconnected from %s", panelIPAndPort)
+		if exit {
+			fmt.Print(" - and exit")
+			close(socketDisconnected) // This signals the loop below to exit
+		}
+		fmt.Println()
 	}
 
 	// Init some vars:
@@ -423,23 +437,25 @@ func rawPanelInquery(newEntry *ZeroconfEntry) {
 	// Connect to panel:
 	go helpers.ConnectToPanel(panelIPAndPort, msgsToPanel, msgsFromPanel, ctx, &wg, onconnect, ondisconnect, nil)
 
-	// Start a timer for timeout:
-	ticker := time.NewTicker(time.Second)
-	timer1 := time.NewTimer(time.Duration(rand.Intn(5)+5) * time.Second)
-	timer2 := time.NewTimer(20 * time.Second) // This timeout of 20000 ms is also used in index.html to paint the time red, just beware of that.
+	// Timers:
+	ticker := time.NewTicker(time.Second)                                // Sending pings
+	timer1 := time.NewTimer(time.Duration(rand.Intn(5)+5) * time.Second) // Re-sending request for topology if it hasn't arrived after about 5-10 seconds
+	timer2 := time.NewTimer(20 * time.Second)                            // This timeout of 20000 ms is also used in index.html to paint the time red, just beware of that if you want to make it longer.
 
 readloop:
 	for {
 		select {
-		case <-ctx.Done():
+		case <-socketDisconnected: // IMPORTANT: Only exit this read loop (that reads msgsFromPanel) if we are disconnected! That is why we do not listen for events from ctx.Done() but rather a separate channel
 			break readloop
-		case <-ticker.C:
+
+		case <-ticker.C: // Sending pings...
 			msgsToPanel <- []*rwp.InboundMessage{
 				&rwp.InboundMessage{
 					FlowMessage: 1,
 				},
 			}
-		case <-timer1.C:
+
+		case <-timer1.C: // Re-request if we are still here after 5-10 seconds.
 			log.Println("Resend...", panelIPAndPort)
 			msgsToPanel <- []*rwp.InboundMessage{
 				&rwp.InboundMessage{
@@ -451,121 +467,125 @@ readloop:
 					},
 				},
 			}
-		case <-timer2.C:
-			//fmt.Println("expire...", time.Now().Sub(timeBeforeConnect))
-			cancel()
+
+		case <-timer2.C: // Final time out
+			cancel() // This will shut down the connection and lead to also shutting down _this_ loop.
 			fmt.Println("Timeout ", panelIPAndPort)
-			break readloop
-		case messagesFromPanel := <-msgsFromPanel:
+
+		case messagesFromPanel := <-msgsFromPanel: // Reading messages from the panel (important to keep doing until ondisconnect() is called)
 			for _, msg := range messagesFromPanel {
-				if msg.PanelInfo != nil {
-					if msg.PanelInfo.Name != "" {
-						rpDetails.FriendlyName = msg.PanelInfo.Name
-					}
-					if msg.PanelInfo.Model != "" {
-						readParts |= 1 << 1
-						rpDetails.Model = msg.PanelInfo.Model
-
-						newEntry.Lock()
-						if newEntry.Model != rpDetails.Model {
-							rpDetails.SerialModelError = true
+				if readParts != 127 {
+					if msg.PanelInfo != nil {
+						if msg.PanelInfo.Name != "" {
+							rpDetails.FriendlyName = msg.PanelInfo.Name
 						}
-						newEntry.Unlock()
-					}
-					if msg.PanelInfo.Serial != "" {
-						readParts |= 1 << 2
-						rpDetails.Serial = msg.PanelInfo.Serial
+						if msg.PanelInfo.Model != "" {
+							readParts |= 1 << 1
+							rpDetails.Model = msg.PanelInfo.Model
 
-						newEntry.Lock()
-						if newEntry.Serial != rpDetails.Serial {
-							rpDetails.SerialModelError = true
+							newEntry.Lock()
+							if newEntry.Model != rpDetails.Model {
+								rpDetails.SerialModelError = true
+							}
+							newEntry.Unlock()
 						}
-						newEntry.Unlock()
-					}
-					if msg.PanelInfo.SoftwareVersion != "" {
-						rpDetails.SoftwareVersion = msg.PanelInfo.SoftwareVersion
-					}
-					if msg.PanelInfo.Platform != "" {
-						rpDetails.Platform = msg.PanelInfo.Platform
-					}
-					if msg.PanelInfo.BluePillReady {
-						rpDetails.BluePillReady = "Yes"
-					}
-					if msg.PanelInfo.MaxClients != 0 {
-						rpDetails.MaxClients = msg.PanelInfo.MaxClients
-					}
-					if len(msg.PanelInfo.LockedToIPs) != 0 {
-						rpDetails.LockedToIPs = strings.Join(msg.PanelInfo.LockedToIPs, ";")
-					}
-				}
+						if msg.PanelInfo.Serial != "" {
+							readParts |= 1 << 2
+							rpDetails.Serial = msg.PanelInfo.Serial
 
-				if msg.PanelTopology != nil {
-					if msg.PanelTopology.Json != "" {
-						var TopologyData = &topology.Topology{}
-						err := json.Unmarshal([]byte(msg.PanelTopology.Json), TopologyData)
-						if err != nil {
-							log.Println("Topology JSON parsing Error: ", err)
-						} else {
-							rpDetails.TotalHWCs = len(TopologyData.HWc)
-							topologyJSON = msg.PanelTopology.Json
+							newEntry.Lock()
+							if newEntry.Serial != rpDetails.Serial {
+								rpDetails.SerialModelError = true
+							}
+							newEntry.Unlock()
+						}
+						if msg.PanelInfo.SoftwareVersion != "" {
+							rpDetails.SoftwareVersion = msg.PanelInfo.SoftwareVersion
+						}
+						if msg.PanelInfo.Platform != "" {
+							rpDetails.Platform = msg.PanelInfo.Platform
+						}
+						if msg.PanelInfo.BluePillReady {
+							rpDetails.BluePillReady = "Yes"
+						}
+						if msg.PanelInfo.MaxClients != 0 {
+							rpDetails.MaxClients = msg.PanelInfo.MaxClients
+						}
+						if len(msg.PanelInfo.LockedToIPs) != 0 {
+							rpDetails.LockedToIPs = strings.Join(msg.PanelInfo.LockedToIPs, ";")
 						}
 					}
-					if msg.PanelTopology.Svgbase != "" {
-						topologySVG = msg.PanelTopology.Svgbase
-					}
-					if topologyJSON != "" && topologySVG != "" {
-						readParts |= 1 << 3
-						rpDetails.PanelTopologySVG = topology.GenerateCompositeSVG(topologyJSON, topologySVG, nil)
-					}
-				}
 
-				if msg.Connections != nil {
-					readParts |= 1 << 4
-					for i, connectedIP := range msg.Connections.Connection {
-						if ownIPusedToConnect == connectedIP {
-							msg.Connections.Connection = append(msg.Connections.Connection[:i], msg.Connections.Connection[i+1:]...)
-							break // Only remote at most one IP address here since we want to know if we are - ourselves, but not this tool - connected.
+					if msg.PanelTopology != nil {
+						if msg.PanelTopology.Json != "" {
+							var TopologyData = &topology.Topology{}
+							err := json.Unmarshal([]byte(msg.PanelTopology.Json), TopologyData)
+							if err != nil {
+								log.Println("Topology JSON parsing Error: ", err)
+							} else {
+								rpDetails.TotalHWCs = len(TopologyData.HWc)
+								topologyJSON = msg.PanelTopology.Json
+							}
+						}
+						if msg.PanelTopology.Svgbase != "" {
+							topologySVG = msg.PanelTopology.Svgbase
+						}
+						if topologyJSON != "" && topologySVG != "" {
+							readParts |= 1 << 3
+							rpDetails.PanelTopologySVG = topology.GenerateCompositeSVG(topologyJSON, topologySVG, nil)
 						}
 					}
-					rpDetails.Connections = strings.Join(msg.Connections.Connection, ",")
-				}
 
-				if msg.RunTimeStats != nil {
-					if msg.RunTimeStats.BootsCount > 0 {
-						readParts |= 1 << 5
-						rpDetails.BootsCount = int(msg.RunTimeStats.BootsCount)
-					}
-					if msg.RunTimeStats.TotalUptime > 0 {
-						readParts |= 1 << 6
-						TotalUptimeGlobal = msg.RunTimeStats.TotalUptime // Because we need the value below and these may not come in the same message (they DONT on ASCII version of RWP protocol...)
-						rpDetails.TotalUptime = fmt.Sprintf("%dd %dh", msg.RunTimeStats.TotalUptime/60/24, (msg.RunTimeStats.TotalUptime/60)%24)
-					}
-					if msg.RunTimeStats.SessionUptime > 0 {
-						rpDetails.SessionUptime = fmt.Sprintf("%dh %dm", msg.RunTimeStats.SessionUptime/60, msg.RunTimeStats.SessionUptime%60)
-					}
-					if msg.RunTimeStats.ScreenSaveOnTime > 0 {
-						pct := -1
-						if TotalUptimeGlobal > 0 {
-							pct = 100 * int(msg.RunTimeStats.ScreenSaveOnTime) / int(TotalUptimeGlobal)
+					if msg.Connections != nil {
+						readParts |= 1 << 4
+						for i, connectedIP := range msg.Connections.Connection {
+							if ownIPusedToConnect == connectedIP {
+								msg.Connections.Connection = append(msg.Connections.Connection[:i], msg.Connections.Connection[i+1:]...)
+								break // Only remote at most one IP address here since we want to know if we are - ourselves, but not this tool - connected.
+							}
 						}
-						rpDetails.ScreenSaveOnTime = fmt.Sprintf("%dd %dh (%d%%)", msg.RunTimeStats.ScreenSaveOnTime/60/24, (msg.RunTimeStats.ScreenSaveOnTime/60)%24, pct)
+						rpDetails.Connections = strings.Join(msg.Connections.Connection, ",")
 					}
-				}
 
-				if readParts == 127 {
-					cancel()
-					fmt.Println("Cancel ", panelIPAndPort)
-					break readloop
+					if msg.RunTimeStats != nil {
+						if msg.RunTimeStats.BootsCount > 0 {
+							readParts |= 1 << 5
+							rpDetails.BootsCount = int(msg.RunTimeStats.BootsCount)
+						}
+						if msg.RunTimeStats.TotalUptime > 0 {
+							readParts |= 1 << 6
+							TotalUptimeGlobal = msg.RunTimeStats.TotalUptime // Because we need the value below and these may not come in the same message (they DONT on ASCII version of RWP protocol...)
+							rpDetails.TotalUptime = fmt.Sprintf("%dd %dh", msg.RunTimeStats.TotalUptime/60/24, (msg.RunTimeStats.TotalUptime/60)%24)
+						}
+						if msg.RunTimeStats.SessionUptime > 0 {
+							rpDetails.SessionUptime = fmt.Sprintf("%dh %dm", msg.RunTimeStats.SessionUptime/60, msg.RunTimeStats.SessionUptime%60)
+						}
+						if msg.RunTimeStats.ScreenSaveOnTime > 0 {
+							pct := -1
+							if TotalUptimeGlobal > 0 {
+								pct = 100 * int(msg.RunTimeStats.ScreenSaveOnTime) / int(TotalUptimeGlobal)
+							}
+							rpDetails.ScreenSaveOnTime = fmt.Sprintf("%dd %dh (%d%%)", msg.RunTimeStats.ScreenSaveOnTime/60/24, (msg.RunTimeStats.ScreenSaveOnTime/60)%24, pct)
+						}
+					}
+
+					if readParts == 127 {
+						cancel() // Close connection
+						fmt.Println("Cancel ", panelIPAndPort)
+					}
 				}
 			}
 		}
 	}
+
+	// Stop timers and tickers:
 	timer1.Stop()
 	timer2.Stop()
 	ticker.Stop()
 
+	// Wait for ConnectToPanel to completely shutdown and exit (nested go routines)
 	fmt.Println("WG waiting ", panelIPAndPort)
-	//wg.Wait()		// TODO: I want to enable the wait groups and close the channels above, but it won't work because of an unsolved by in ConnectToPanel where the ctx.Done() that closes the conn does NOT lead to the reading to cancel. This happens with the ASCII reader...
+	wg.Wait()
 	fmt.Println("WG done ", panelIPAndPort)
 
 	// Time spend:
@@ -586,6 +606,7 @@ func getPingTimes(ip string) int {
 
 	p := fastping.NewPinger()
 	p.Network("udp")
+	p.MaxRTT = time.Millisecond * 2000
 	ra, err := net.ResolveIPAddr("ip4:icmp", ip)
 	if log.Should(err) {
 		return -1

@@ -33,6 +33,7 @@ var incoming chan []*rwp.InboundMessage
 var outgoing chan []*rwp.OutboundMessage
 
 var panelConnectionCancel *context.CancelFunc
+var waitForShutdown sync.WaitGroup
 
 var TopologyData = &topology.Topology{}
 var TotalUptimeGlobal uint32
@@ -506,9 +507,10 @@ func switchToPanel(panelIPAndPort string) {
 
 	// Kill old connection
 	if panelConnectionCancel != nil {
-		log.Println("Disconnected based on switching panel")
+		log.Print("Disconnected based on switching panel, waiting for shutdown...")
 		(*panelConnectionCancel)()
-		time.Sleep(time.Second)
+		waitForShutdown.Wait()
+		log.Println("Shutdown done!")
 	}
 
 	// Set up new:
@@ -526,6 +528,61 @@ func switchToPanel(panelIPAndPort string) {
 	}
 	lastStateMu.Unlock()
 
-	go connectToPanel(panelIPAndPort, incoming, outgoing, ctx)
+	// On-connect function - asking for a bunch of things...:
+	onconnect := func(errorMsg string, binary bool, c net.Conn) {
+		log.Printf("Connected to %s\n", panelIPAndPort)
+
+		// Send query for stuff we want to know...:
+		incoming <- []*rwp.InboundMessage{
+			&rwp.InboundMessage{
+				Command: &rwp.Command{
+					ActivatePanel:         true,
+					SendPanelInfo:         true,
+					SendPanelTopology:     true,
+					ReportHWCavailability: true,
+					GetConnections:        true,
+					GetRunTimeStats:       true,
+					PublishSystemStat: &rwp.PublishSystemStat{
+						PeriodSec: 15,
+					},
+					SetHeartBeatTimer: &rwp.HeartBeatTimer{
+						Value: 3000,
+					},
+				},
+			},
+		}
+	}
+
+	passOnIncoming := make(chan []*rwp.InboundMessage, 10)
+	go func() {
+		//a := 0
+		poll := time.NewTicker(time.Millisecond * 60 * 1000)
+		for {
+			select {
+			case <-ctx.Done():
+				poll.Stop()
+				return
+			case incomingMessages := <-incoming:
+				passOnIncoming <- incomingMessages
+				if shadowPanelListening.Load() {
+					shadowPanelIncoming <- incomingMessages
+				}
+				fmt.Println()
+			case <-poll.C:
+				incoming <- []*rwp.InboundMessage{
+					&rwp.InboundMessage{
+						Command: &rwp.Command{
+							GetConnections:  true,
+							GetRunTimeStats: true,
+						},
+					},
+				}
+			}
+		}
+	}()
+
+	//go connectToPanel(panelIPAndPort, incoming, outgoing, ctx)
+	go helpers.ConnectToPanel(panelIPAndPort, passOnIncoming, outgoing, ctx, &waitForShutdown, onconnect, nil, nil)
+
 	go getTopology(incoming, outgoing, ctx)
 }

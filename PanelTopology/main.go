@@ -60,7 +60,7 @@ func main() {
 
 	// Set up server:
 	incoming = make(chan []*rwp.InboundMessage, 10)
-	outgoing = make(chan []*rwp.OutboundMessage, 10)
+	outgoing = make(chan []*rwp.OutboundMessage, 50)
 	shadowPanelIncoming = make(chan []*rwp.InboundMessage, 10)
 
 	demoHWCids.Store([]uint32{})
@@ -73,6 +73,7 @@ func main() {
 	}
 
 	if len(arguments) > 1 {
+		fmt.Println("Connection to shadow panel: ", string(arguments[1]))
 		connectToShadowPanel(string(arguments[1]), shadowPanelIncoming)
 	}
 

@@ -27,7 +27,7 @@ var shadowPanelTopologyData *topology.Topology
 // Panel centric view:
 // Inbound TCP commands - from external system to SKAARHOJ panel
 // Outbound TCP commands - from panel to external system
-func connectToShadowPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage) {
+func connectToShadowPanel(panelIPAndPort string, shadowIncoming chan []*rwp.InboundMessage) {
 
 	binaryPanel := true
 
@@ -95,7 +95,7 @@ func connectToShadowPanel(panelIPAndPort string, incoming chan []*rwp.InboundMes
 			}
 
 			// Send query for a lot of stuff we want to know...:
-			incoming <- []*rwp.InboundMessage{
+			shadowIncoming <- []*rwp.InboundMessage{
 				&rwp.InboundMessage{
 					Command: &rwp.Command{
 						ActivatePanel:     true,
@@ -116,7 +116,7 @@ func connectToShadowPanel(panelIPAndPort string, incoming chan []*rwp.InboundMes
 					case <-quit:
 						shadowPanelListening.Store(false)
 						return
-					case incomingMessages := <-incoming:
+					case incomingMessages := <-shadowIncoming:
 						if binaryPanel {
 							for _, msg := range incomingMessages {
 								pbdata, err := proto.Marshal(msg)
@@ -158,7 +158,7 @@ func connectToShadowPanel(panelIPAndPort string, incoming chan []*rwp.InboundMes
 								}
 							}
 							if msg.FlowMessage == 1 { // Ping:
-								incoming <- []*rwp.InboundMessage{
+								shadowIncoming <- []*rwp.InboundMessage{
 									&rwp.InboundMessage{
 										FlowMessage: 2,
 									},

@@ -211,8 +211,10 @@ func reader(conn *websocket.Conn) {
 
 			if wsFromClient.Disconnect {
 				if panelConnectionCancel != nil {
-					log.Println("Disconnected based on ws message")
+					log.Print("Disconnected based on ws disconnect message, waiting for shutdown...")
 					(*panelConnectionCancel)()
+					waitForShutdown.Wait()
+					log.Println("Shutdown done!")
 				}
 			}
 
