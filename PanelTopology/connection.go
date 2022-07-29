@@ -567,7 +567,6 @@ func switchToPanel(panelIPAndPort string) {
 				if shadowPanelListening.Load() {
 					shadowPanelIncoming <- incomingMessages
 				}
-				fmt.Println()
 			case <-poll.C:
 				incoming <- []*rwp.InboundMessage{
 					&rwp.InboundMessage{
