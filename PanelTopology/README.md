@@ -1,0 +1,1 @@
+Moved to own repo, https://github.com/SKAARHOJ/raw-panel-explorer
