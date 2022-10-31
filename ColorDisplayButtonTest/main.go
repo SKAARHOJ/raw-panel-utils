@@ -1,12 +1,12 @@
 /*
-	Raw Panel Test Application
+Raw Panel Test Application
 
-	Cycles button colors and display content on all hardware components
-	The cycle happens as buttons are pressed or automatically after some seconds of idle time.
+Cycles button colors and display content on all hardware components
+The cycle happens as buttons are pressed or automatically after some seconds of idle time.
 
-	Distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-	PARTICULAR PURPOSE. MIT License
+Distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. MIT License
 */
 package main
 
@@ -335,6 +335,7 @@ func connectToPanel(panelIPAndPort string, incoming chan []*rwp.InboundMessage, 
 
 var PanelName = make(map[int]string)
 var PanelFaders = make(map[int][]uint32)
+var PanelDisplays = make(map[int][]uint32)
 
 func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage, invertCallAll bool, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseOutgoing *int, demoModeFaders *bool, demoModeImgsOnly *bool, mixColors *bool) {
 
@@ -434,7 +435,7 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					}
 
 					txt := &rwp.HWCText{}
-					if len(dispMsg) > 0 && dispMsg[0].States[0].HWCText != nil {
+					if len(dispMsg) > 0 && dispMsg[0].States[0].HWCText != nil && doesHWChaveDisplay(panelNum, activeHWCs) {
 						txt = dispMsg[0].States[0].HWCText
 					} else {
 						txt = nil
@@ -540,6 +541,12 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 								PanelFaders[panelNum] = []uint32{}
 							}
 							PanelFaders[panelNum] = append(PanelFaders[panelNum], HWcDef.Id)
+						}
+						if typeDef.Disp != (TopologyHWcTypeDef_Display{}) {
+							if _, exists := PanelDisplays[panelNum]; !exists {
+								PanelDisplays[panelNum] = []uint32{}
+							}
+							PanelDisplays[panelNum] = append(PanelDisplays[panelNum], HWcDef.Id)
 						}
 					}
 				}
@@ -775,6 +782,19 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 			}
 		}
 	}
+}
+
+func doesHWChaveDisplay(panelNum int, HWCid []uint32) bool {
+	if _, exists := PanelDisplays[panelNum]; exists {
+		for _, hwcIDwithDisplay := range PanelDisplays[panelNum] {
+			for _, hwcIDtoMatchWith := range HWCid {
+				if hwcIDwithDisplay == hwcIDtoMatchWith {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // Main:
