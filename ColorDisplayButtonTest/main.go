@@ -337,7 +337,7 @@ var PanelName = make(map[int]string)
 var PanelFaders = make(map[int][]uint32)
 var PanelDisplays = make(map[int][]uint32)
 
-func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage, invertCallAll bool, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseOutgoing *int, demoModeFaders *bool, demoModeImgsOnly *bool, mixColors *bool) {
+func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.OutboundMessage, invertCallAll int, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseOutgoing *int, demoModeFaders *bool, demoModeImgsOnly *bool, mixColors *bool) {
 
 	numberOfTextStrings := su.Qint(*demoModeImgsOnly, 0, len(HWCtextStrings))
 	HWCavailabilityMap := make(map[int]bool)
@@ -375,7 +375,7 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 
 				if goAuto && *demoModeDelay != 0 { // Running the demo cycle:
 					activeHWCs := make([]uint32, 0)
-					if invertCallAll {
+					if invertCallAll == 1 {
 						for k, isActive := range HWCavailabilityMap {
 							if isActive && inList(k, exclusiveList) {
 								activeHWCs = append(activeHWCs, uint32(k))
@@ -563,7 +563,11 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 					for _, Event := range msg.Events {
 
 						activeHWCs := make([]uint32, 0)
-						if (Event.Binary != nil && (Event.Binary.Edge == rwp.BinaryEvent_LEFT || Event.Binary.Edge == rwp.BinaryEvent_RIGHT)) != invertCallAll || (Event.Absolute != nil || Event.Speed != nil) {
+						EMC := invertCallAll == 2
+						if EMC ||
+							(Event.Binary != nil && (Event.Binary.Edge == rwp.BinaryEvent_LEFT || Event.Binary.Edge == rwp.BinaryEvent_RIGHT)) != (invertCallAll > 0) ||
+							Event.Absolute != nil ||
+							Event.Speed != nil {
 							for k, isActive := range HWCavailabilityMap {
 								if isActive && inList(k, exclusiveList) {
 									activeHWCs = append(activeHWCs, uint32(k))
@@ -609,13 +613,21 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 								}
 
 								txt := rwp.HWCText{}
-								if len(dispMsg) > 0 && dispMsg[0].States[0].HWCText != nil {
-									txt = *dispMsg[0].States[0].HWCText
-									txt.Inverted = !txt.Inverted
-								}
 								img := rwp.HWCGfx{}
-								if len(dispMsg) > 0 && dispMsg[0].States[0].HWCGfx != nil {
-									img = *dispMsg[0].States[0].HWCGfx
+								if EMC {
+									txt.Formatting = 7
+									txt.Title = fmt.Sprintf("HWc #%d", Event.HWCID)
+									txt.SolidHeaderBar = true
+									txt.Textline1 = fmt.Sprintf("Edge %d", Event.Binary.Edge)
+									txt.Inverted = true
+								} else {
+									if len(dispMsg) > 0 && dispMsg[0].States[0].HWCText != nil {
+										txt = *dispMsg[0].States[0].HWCText
+										txt.Inverted = true
+									}
+									if len(dispMsg) > 0 && dispMsg[0].States[0].HWCGfx != nil {
+										img = *dispMsg[0].States[0].HWCGfx
+									}
 								}
 
 								incoming <- []*rwp.InboundMessage{
@@ -673,12 +685,22 @@ func testManager(incoming chan []*rwp.InboundMessage, outgoing chan []*rwp.Outbo
 								}
 
 								txt := rwp.HWCText{}
-								if len(dispMsg) > 0 && dispMsg[0].States[0].HWCText != nil {
-									txt = *dispMsg[0].States[0].HWCText
-								}
 								img := rwp.HWCGfx{}
-								if len(dispMsg) > 0 && dispMsg[0].States[0].HWCGfx != nil {
-									img = *dispMsg[0].States[0].HWCGfx
+
+								if EMC {
+									txt.Formatting = 7
+									txt.Title = fmt.Sprintf("HWc #%d", Event.HWCID)
+									txt.SolidHeaderBar = true
+									txt.Textline1 = fmt.Sprintf("Pulse %d", Event.Pulsed.Value)
+									txt.Inverted = true
+								} else {
+									if len(dispMsg) > 0 && dispMsg[0].States[0].HWCText != nil {
+										txt = *dispMsg[0].States[0].HWCText
+										txt.Inverted = !txt.Inverted
+									}
+									if len(dispMsg) > 0 && dispMsg[0].States[0].HWCGfx != nil {
+										img = *dispMsg[0].States[0].HWCGfx
+									}
 								}
 
 								incoming <- []*rwp.InboundMessage{
@@ -804,7 +826,7 @@ func main() {
 
 	// Setting up and parsing command line parameters
 	binPanel := flag.Bool("binPanel", false, "Connects to the panels in binary mode")
-	invertCallAll := flag.Bool("invertCallAll", false, "Inverts which button edges that triggers 'call all' change of button colors and display contents. False=Left+Right edge, True=Up+Down+Encoder+None")
+	invertCallAll := flag.Int("invertCallAll", 0, "Inverts which button edges that triggers 'call all' change of button colors and display contents. 0=Left+Right edge, >1=Up+Down+Encoder+None. If 2, any trigger will activate all displays and components and show HWC number (for EMC Immunity testing)")
 	verboseO := flag.Int("verboseOutgoing", 0, "Verbose output from panel, otherwise only events are shown. 1=Low intensity, 2=Higher intensity (protobuf messages as JSON)")
 	verboseI := flag.Int("verboseIncoming", 0, "Verbose input messages to panel (default is none shown). 1=Low intensity, 2=Higher intensity (protobuf messages as JSON)")
 	autoInterval := flag.Int("autoInterval", 100, "Interval in ms for demo engine sending out content")
@@ -850,7 +872,7 @@ func main() {
 	select {}
 }
 
-func startTest(panelIPAndPort string, binPanel *bool, invertCallAll *bool, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseO *int, verboseI *int, analogProfiling *bool, cpuProfiling *int, brightness *int, fullPowerStartUp *bool, demoModeFaders *bool, demoModeImgsOnly *bool, mixColors *bool) {
+func startTest(panelIPAndPort string, binPanel *bool, invertCallAll *int, panelNum int, autoInterval *int, exclusiveHWClist *string, demoModeDelay *int, verboseO *int, verboseI *int, analogProfiling *bool, cpuProfiling *int, brightness *int, fullPowerStartUp *bool, demoModeFaders *bool, demoModeImgsOnly *bool, mixColors *bool) {
 
 	// Set up server:
 	incoming := make(chan []*rwp.InboundMessage, 100)
