@@ -826,12 +826,12 @@ func main() {
 
 	// Setting up and parsing command line parameters
 	binPanel := flag.Bool("binPanel", false, "Connects to the panels in binary mode")
-	invertCallAll := flag.Int("invertCallAll", 0, "Inverts which button edges that triggers 'call all' change of button colors and display contents. 0=Left+Right edge, >1=Up+Down+Encoder+None. If 2, any trigger will activate all displays and components and show HWC number (for EMC Immunity testing)")
+	invertCallAll := flag.Int("invertCallAll", 0, "Inverts which button edges that triggers 'call all' change of button colors and display contents. 0=Left+Right edge, >1=Up+Down+Encoder+None. If 2, any trigger will activate all displays and components and show HWC number (useful for Immunity testing)")
 	verboseO := flag.Int("verboseOutgoing", 0, "Verbose output from panel, otherwise only events are shown. 1=Low intensity, 2=Higher intensity (protobuf messages as JSON)")
 	verboseI := flag.Int("verboseIncoming", 0, "Verbose input messages to panel (default is none shown). 1=Low intensity, 2=Higher intensity (protobuf messages as JSON)")
-	autoInterval := flag.Int("autoInterval", 100, "Interval in ms for demo engine sending out content")
+	autoInterval := flag.Int("autoInterval", 500, "Interval in ms for demo engine sending out content")
 	exclusiveHWClist := flag.String("exclusiveHWClist", "", "Comma separated list of HWC numbers to test exclusively")
-	demoModeDelay := flag.Int("demoModeDelay", 5, "The number of seconds before demo mode starts after having manually operated a panel. Zero will disable demo mode.")
+	demoModeDelay := flag.Int("demoModeDelay", 2, "The number of seconds before demo mode starts after having manually operated a panel. Zero will disable demo mode.")
 	demoModeImgsOnly := flag.Bool("demoModeImgsOnly", false, "If set, only images will be cycled to displays in demo mode")
 	mixColors := flag.Bool("mixColors", false, "If set, cycling colors are mixed in small sequences with at least one button highlighted. This tends to produce more 'realistic' colors on panels.")
 	demoModeFaders := flag.Bool("demoModeFaders", false, "Exercise motorized faders continuously in demo mode.")
