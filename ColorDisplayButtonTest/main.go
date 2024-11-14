@@ -839,6 +839,7 @@ func main() {
 	cpuProfiling := flag.Int("cpuProfiling", -1, "If >= zero, will turn on that number of CPU cores (0-4) and track temperature into CSV file and HTML pages in folder ColorDisplayButtonTest/")
 	brightness := flag.Int("brightness", 4, "OLED and Display brightness. 0-8, default is 4.")
 	fullPowerStartUp := flag.Bool("fullPowerStartUp", false, "If set, will panel will boot up with white screens and white LEDs all over.")
+	EMC := flag.Bool("EMC", false, "If set, will run standard test for EMC")
 
 	flag.Parse()
 
@@ -850,6 +851,10 @@ func main() {
 		fmt.Println("help:  -h")
 		fmt.Println("")
 		return
+	}
+
+	if *EMC {
+		*invertCallAll = 2
 	}
 
 	if *analogProfiling {
