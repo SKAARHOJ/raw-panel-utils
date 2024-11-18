@@ -840,6 +840,7 @@ func main() {
 	brightness := flag.Int("brightness", 4, "OLED and Display brightness. 0-8, default is 4.")
 	fullPowerStartUp := flag.Bool("fullPowerStartUp", false, "If set, will panel will boot up with white screens and white LEDs all over.")
 	EMC := flag.Bool("EMC", false, "If set, will run standard test for EMC")
+	WC := flag.Bool("WC", false, "")
 
 	flag.Parse()
 
@@ -854,6 +855,15 @@ func main() {
 	}
 
 	if *EMC {
+		*invertCallAll = 2
+	}
+
+	if *WC {
+		*brightness = 8
+		*cpuProfiling = 2
+		*demoModeFaders = true
+		*autoInterval = 100
+		*fullPowerStartUp = true
 		*invertCallAll = 2
 	}
 
