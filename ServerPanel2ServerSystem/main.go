@@ -1,18 +1,18 @@
 /*
-	This is a Raw Panel Connector application
+This is a Raw Panel Connector application
 
-	It connects to a Panel in Raw Panel Server mode (eg. on 192.168.10.99:9923)
-	It also connects to a System (as a Raw Panel TCP server (eg. on 192.168.10.250:9923)
-	It takes care of ping handshakes
-	It facilitates that the panel sends "list" to the system server (something a UniSketch panel currently doesn't)
-	It also sends "map" over to the panel from the server since this is usually done by the panels initiative in client mode.
+It connects to a Panel in Raw Panel Server mode (eg. on 192.168.10.99:9923)
+It also connects to a System (as a Raw Panel TCP server (eg. on 192.168.10.250:9923)
+It takes care of ping handshakes
+It facilitates that the panel sends "list" to the system server (something a UniSketch panel currently doesn't)
+It also sends "map" over to the panel from the server since this is usually done by the panels initiative in client mode.
 
-	Other than that it just forwards messages between the panel and server, but translates into the intermediate Raw Panel protobuf format forth and back
-	The consequence of this translation is that any graphics over multiple lines from the server side will NOT survive the translation as this gets parsed as individual lines: Graphics won't come through!
+Other than that it just forwards messages between the panel and server, but translates into the intermediate Raw Panel protobuf format forth and back
+The consequence of this translation is that any graphics over multiple lines from the server side will NOT survive the translation as this gets parsed as individual lines: Graphics won't come through!
 
-	Distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
-	without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-	PARTICULAR PURPOSE. MIT License
+Distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. MIT License
 */
 package main
 
@@ -279,7 +279,7 @@ func connectToSystem(systemIPAndPort string, incoming chan []*rwp.InboundMessage
 								proto.Unmarshal(payload, incomingMessage)
 								inboundMessages := []*rwp.InboundMessage{incomingMessage}
 								if incomingMessage.FlowMessage != 2 { // ack
-									if incomingMessage.Command.ActivatePanel {
+									if incomingMessage.Command != nil && incomingMessage.Command.ActivatePanel {
 										inboundMessages = append(inboundMessages, &rwp.InboundMessage{
 											Command: &rwp.Command{
 												ReportHWCavailability: true,
