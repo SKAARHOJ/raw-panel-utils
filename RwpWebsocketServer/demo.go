@@ -1,14 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"math/rand"
 	"sync"
 	"time"
 
+	monogfx "github.com/SKAARHOJ/rawpanel-lib/ibeam_lib_monogfx"
 	rwp "github.com/SKAARHOJ/rawpanel-lib/ibeam_rawpanel"
 	"github.com/SKAARHOJ/rawpanel-lib/topology"
+	rawpanelproc "github.com/SKAARHOJ/rawpanel-processors"
+
+	"github.com/fogleman/gg"
 	log "github.com/s00500/env_logger"
 )
 
@@ -16,19 +24,21 @@ import (
 // It handles the panel topology, color cycling, and event triggers to display messages on the panels.
 // It runs a ticker to periodically update the panel states and listens for events to trigger specific actions.
 type DemoManager struct {
-	mu           sync.Mutex
-	topology     *topology.Topology
-	currentColor int
-	paused       bool
-	lastTrigger  time.Time
-	triggerChan  chan *rwp.HWCEvent
-	sendFunc     func(msg *rwp.InboundMessage)
-	demoTicker   *time.Ticker
-	colorBase    int
-	textSnippets []string
-	colorMax     int
-	hwcList      []uint32
-	resumeTimer  *time.Timer
+	mu               sync.Mutex
+	topology         *topology.Topology
+	currentColor     int
+	paused           bool
+	lastTrigger      time.Time
+	triggerChan      chan *rwp.HWCEvent
+	sendFunc         func(msg *rwp.InboundMessage)
+	demoTicker       *time.Ticker
+	colorBase        int
+	textSnippets     []string
+	textSnippetsUTF8 []string
+	colorMax         int
+	hwcList          []uint32
+	resumeTimer      *time.Timer
+	hwcDisplayMap    map[uint32]*topology.TopologyHWcTypeDef
 }
 
 // NewDemoManager creates a new DemoManager instance with the provided send function.
@@ -37,8 +47,13 @@ func NewDemoManager(sendFunc func(msg *rwp.InboundMessage)) *DemoManager {
 		colorBase:    2,
 		colorMax:     17,
 		textSnippets: []string{"Hello", "World", "RawPanel", "SKAARHOJ", "Demo", "Trigger", "Event", "ColorCycle"},
-		sendFunc:     sendFunc,
-		triggerChan:  make(chan *rwp.HWCEvent, 100),
+		textSnippetsUTF8: []string{
+			"Привет", "Мир", "RawPanel ÆØÅ", "SKÅRHØJ", "Демо", "Триггер", "Событие", "ЦиклЦвета",
+			"こんにちは", "世界", "RawPanel", "SKAARHOJ", "デモ", "トリガー", "イベント", "カラーチャート",
+			"مرحبا", "العالم", "RawPanel", "SKAARHOJ", "عرض", "حدث", "تفعيل", "دورة اللون"},
+		sendFunc:      sendFunc,
+		triggerChan:   make(chan *rwp.HWCEvent, 100),
+		hwcDisplayMap: make(map[uint32]*topology.TopologyHWcTypeDef),
 	}
 }
 
@@ -59,44 +74,19 @@ func (dm *DemoManager) run(ws *WSConnection) {
 
 		case <-dm.demoTicker.C:
 			dm.mu.Lock()
-			if dm.paused || dm.topology == nil {
+			if dm.paused || dm.topology == nil || len(dm.hwcList) == 0 {
 				dm.mu.Unlock()
 				continue
-			}
-
-			if len(dm.hwcList) == 0 {
-				dm.mu.Unlock()
-				continue
-			}
-
-			color := dm.currentColor
-			dm.currentColor++
-			if dm.currentColor > dm.colorMax {
-				dm.currentColor = dm.colorBase
 			}
 
 			hwc := dm.hwcList[hwcIndex]
 			hwcIndex = (hwcIndex + 1) % len(dm.hwcList) // Loop over list
 
+			typeDef := dm.hwcDisplayMap[hwc] // May be nil if no display
+			state := dm.generateDisplayContent(hwc, typeDef)
+
 			msg := &rwp.InboundMessage{
-				States: []*rwp.HWCState{
-					{
-						HWCIDs: []uint32{hwc},
-						HWCMode: &rwp.HWCMode{
-							State: rwp.HWCMode_ON,
-						},
-						HWCColor: &rwp.HWCColor{
-							ColorIndex: &rwp.ColorIndex{
-								Index: rwp.ColorIndex_Colors(color),
-							},
-						},
-						HWCText: &rwp.HWCText{
-							Formatting: 7,
-							Title:      dm.textSnippets[rand.Intn(len(dm.textSnippets))],
-							Textline1:  dm.textSnippets[rand.Intn(len(dm.textSnippets))],
-						},
-					},
-				},
+				States: []*rwp.HWCState{state},
 			}
 			dm.sendFunc(msg)
 			dm.mu.Unlock()
@@ -189,6 +179,10 @@ func (dm *DemoManager) OnTopology(jsonStr string) {
 	for _, hwc := range topology.HWc {
 		if hwc.Type > 0 {
 			dm.hwcList = append(dm.hwcList, hwc.Id)
+
+			if typeDef, err := topology.GetHWCtype(hwc.Id); err == nil && typeDef.HasDisplay() {
+				dm.hwcDisplayMap[hwc.Id] = typeDef
+			}
 		}
 	}
 	log.Println("DemoManager: Topology loaded with", len(dm.hwcList), "HWCs")
@@ -197,4 +191,158 @@ func (dm *DemoManager) OnTopology(jsonStr string) {
 // OnEvent processes incoming hardware events, triggering the demo functionality.
 func (dm *DemoManager) OnEvent(evt *rwp.HWCEvent) {
 	dm.triggerChan <- evt
+}
+
+func (dm *DemoManager) generateDisplayContent(hwcID uint32, typeDef *topology.TopologyHWcTypeDef) *rwp.HWCState {
+	color := dm.currentColor
+	dm.currentColor++
+	if dm.currentColor > dm.colorMax {
+		dm.currentColor = dm.colorBase
+	}
+
+	state := &rwp.HWCState{
+		HWCIDs: []uint32{hwcID},
+		HWCMode: &rwp.HWCMode{
+			State: rwp.HWCMode_ON,
+		},
+		HWCColor: &rwp.HWCColor{
+			ColorIndex: &rwp.ColorIndex{
+				Index: rwp.ColorIndex_Colors(color),
+			},
+		},
+	}
+
+	// Only add text if HWC has display
+	if typeDef != nil && typeDef.HasDisplay() {
+
+		disp := typeDef.DisplayInfo()
+		if disp == nil {
+			return state // fallback: no display info available
+		}
+
+		switch rand.Intn(5) { // Now includes HWCGfx case
+		case 0:
+			// HWCText
+			state.HWCText = &rwp.HWCText{
+				Formatting: 7,
+				Title:      dm.textSnippets[rand.Intn(len(dm.textSnippets))],
+				Textline1:  dm.textSnippets[rand.Intn(len(dm.textSnippets))],
+			}
+		case 1:
+			// Audio Meter
+			state.Processors = &rwp.Processors{
+				AudioMeter: &rwp.ProcAudioMeter{
+					W:     uint32(disp.W),
+					H:     uint32(disp.H),
+					Title: dm.textSnippets[rand.Intn(len(dm.textSnippets))],
+					Mono:  false,
+					Data1: uint32(rand.Intn(1001)),
+					Peak1: uint32(rand.Intn(1001)),
+					Data2: uint32(rand.Intn(1001)),
+					Peak2: uint32(rand.Intn(1001)),
+				},
+			}
+		case 2:
+			// UniText Processor
+			state.Processors = &rwp.Processors{
+				UniText: &rwp.ProcUniText{
+					W:              uint32(disp.W),
+					H:              uint32(disp.H),
+					Title:          dm.textSnippetsUTF8[rand.Intn(len(dm.textSnippetsUTF8))],
+					Textline1:      dm.textSnippetsUTF8[rand.Intn(len(dm.textSnippetsUTF8))],
+					SolidHeaderBar: true,
+				},
+			}
+		case 3:
+			// Static PNG image using processor
+			img, err := createTestImage(disp.W, disp.H, disp.Type, fmt.Sprintf("%dx%d", disp.W, disp.H))
+			if err == nil {
+				var buf bytes.Buffer
+				if err := png.Encode(&buf, img); err == nil {
+					imageData := buf.Bytes()
+					encoding := rwp.ProcGfxConverter_MONO
+					switch disp.Type {
+					case "color":
+						encoding = rwp.ProcGfxConverter_RGB16bit
+					case "gray":
+						encoding = rwp.ProcGfxConverter_Gray4bit
+					}
+					state.Processors = &rwp.Processors{
+						GfxConv: &rwp.ProcGfxConverter{
+							W:         uint32(disp.W),
+							H:         uint32(disp.H),
+							ImageType: encoding,
+							Scaling:   rwp.ProcGfxConverter_STRETCH,
+							ImageData: imageData,
+						},
+					}
+				}
+			}
+		case 4:
+			// HWCGfx image directly (not using processors)
+			inImg, err := createTestImage(disp.W, disp.H, disp.Type, fmt.Sprintf("%d*%d", disp.W, disp.H))
+			if err == nil {
+				img := rwp.HWCGfx{
+					W: uint32(disp.W),
+					H: uint32(disp.H),
+				}
+
+				monoImg := monogfx.MonoImg{}
+				monoImg.NewImage(int(img.W), int(img.H))
+
+				switch disp.Type {
+				case "color":
+					img.ImageType = rwp.HWCGfx_RGB16bit
+					img.ImageData = monoImg.GetImgSliceRGB()
+				case "gray":
+					img.ImageType = rwp.HWCGfx_Gray4bit
+					img.ImageData = monoImg.GetImgSliceGray()
+				default:
+					img.ImageType = rwp.HWCGfx_MONO
+					img.ImageData = monoImg.GetImgSlice()
+				}
+
+				imgBounds := rawpanelproc.ImageBounds{X: 0, Y: 0, W: int(img.W), H: int(img.H)}
+				rawpanelproc.RenderImageOnCanvas(&img, inImg, imgBounds, "", "", "")
+				state.HWCGfx = &img
+			}
+		}
+	}
+
+	return state
+}
+
+func createTestImage(W int, H int, imageType string, label string) (image.Image, error) {
+	canvas := image.NewRGBA(image.Rect(0, 0, W, H))
+	dc := gg.NewContextForRGBA(canvas)
+
+	// Define the background gradient
+	if imageType == "color" || imageType == "gray" {
+		grad := gg.NewLinearGradient(0, 0, float64(W), float64(H))
+		if imageType == "color" {
+			grad.AddColorStop(0, color.RGBA{255, 0, 0, 255})   // Red
+			grad.AddColorStop(0.5, color.RGBA{0, 255, 0, 255}) // Green
+			grad.AddColorStop(1, color.RGBA{0, 0, 255, 255})   // Blue
+		} else {
+			grad.AddColorStop(0, color.RGBA{0, 0, 0, 255})       // Black
+			grad.AddColorStop(1, color.RGBA{255, 255, 255, 255}) // White
+		}
+		dc.SetFillStyle(grad)
+		dc.DrawRectangle(0, 0, float64(W), float64(H))
+		dc.Fill()
+	} else {
+		dc.SetColor(color.Black)
+		dc.Clear()
+	}
+
+	// Border
+	dc.SetColor(color.White)
+	dc.DrawRectangle(0, 0, float64(W), float64(H))
+	dc.Stroke()
+
+	// Label
+	dc.SetColor(color.White)
+	dc.DrawStringAnchored(label, float64(W)/2, float64(H)/2, 0.5, 0.5)
+
+	return canvas, nil
 }
