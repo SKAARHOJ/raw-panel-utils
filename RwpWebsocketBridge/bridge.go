@@ -10,6 +10,8 @@ import (
 
 	helpers "github.com/SKAARHOJ/rawpanel-lib"
 	rwp "github.com/SKAARHOJ/rawpanel-lib/ibeam_rawpanel"
+	rawpanelproc "github.com/SKAARHOJ/rawpanel-processors"
+
 	log "github.com/s00500/env_logger"
 
 	"github.com/gorilla/websocket"
@@ -38,8 +40,9 @@ type BridgeConnection struct {
 	// Wg tracks all goroutines launched for this panel, for clean shutdown.
 	Wg sync.WaitGroup
 
-	ClientID     string // "Username" for authentication
-	ClientSecret string // "Password" for authentication
+	ClientID     string      // "Username" for authentication
+	ClientSecret string      // "Password" for authentication
+	Processors   atomic.Bool // Enable processors for this panel
 
 	WSConn         *websocket.Conn
 	WSMutex        sync.Mutex // To safely send on WSConn
@@ -68,10 +71,14 @@ type WSMessageFromServer struct {
 }
 
 // NewBridgeManager initializes a new BridgeConnection instance with the given parameters.
-func NewBridgeManager(addr string, wsEndpoint string, clientID, clientSecret string) *BridgeConnection {
+func NewBridgeManager(addr string, wsEndpoint string, clientID, clientSecret string, processors bool) *BridgeConnection {
 
 	// Create a cancellable context used to control this connection's lifecycle.
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Initialize atomic.Bool and store the value
+	var processorsFlag atomic.Bool
+	processorsFlag.Store(processors)
 
 	// Return a fully initialized struct instance.
 	return &BridgeConnection{
@@ -84,6 +91,7 @@ func NewBridgeManager(addr string, wsEndpoint string, clientID, clientSecret str
 		Wg:             sync.WaitGroup{},                       // WaitGroup to track goroutines
 		ClientID:       clientID,                               // Client ID ("username") for authentication
 		ClientSecret:   clientSecret,                           // Client Secret ("password") for authentication
+		Processors:     processorsFlag,                         // Processors enabled/disabled
 	}
 }
 
@@ -277,6 +285,20 @@ func (bc *BridgeConnection) readWebSocketMessages() {
 		if len(envelope.MsgsToPanel) > 0 {
 			//log.Println(log.Indent(envelope.MsgsToPanel))
 			if bc.wsReady.Load() { // Only forward messages if "ready"
+
+				// Run processors on it
+				if bc.Processors.Load() {
+					for _, msg := range envelope.MsgsToPanel {
+						if len(msg.States) > 0 {
+							for _, stateRec := range msg.States {
+								if stateRec.Processors != nil {
+									rawpanelproc.StateProcessor(stateRec)
+								}
+							}
+						}
+					}
+				}
+
 				select {
 				case bc.Incoming <- envelope.MsgsToPanel:
 				default:
@@ -314,6 +336,30 @@ func (bc *BridgeConnection) messageLoop() {
 			if !bc.wsReady.Load() {
 				log.Warnf("[%s] Skipping outgoing message: WebSocket not ready", bc.PanelAddr)
 				continue
+			}
+
+			// Intercept a few things in the messages before sending them out
+			for _, msg := range msgs {
+				if msg.PanelInfo != nil {
+
+					if msg.PanelInfo.Model != "" && msg.PanelInfo.RawPanelSupport == nil { // If we are on a UniSketch panel that never sends RawPanelSupport object, we will bundle it here
+						msg.PanelInfo.RawPanelSupport = &rwp.RawPanelSupport{}
+					}
+
+					if msg.PanelInfo.RawPanelSupport != nil {
+						msg.PanelInfo.RawPanelSupport.ASCII = true              // Ensure ASCII support is enabled (but actually, the old-fasioned ASCII protocol is not used here...)
+						msg.PanelInfo.RawPanelSupport.Binary = false            // Ensure binary support is diabled (we only use ASCII)
+						msg.PanelInfo.RawPanelSupport.ASCII_JSONfeedback = true // Enable JSON feedback in ASCII mode
+						msg.PanelInfo.RawPanelSupport.ASCII_Inbound = true      // Enable JSON decoding for inbound messages
+						msg.PanelInfo.RawPanelSupport.ASCII_Outbound = true     // Enable JSON encoding for outbound messages
+
+						if !msg.PanelInfo.RawPanelSupport.Processors {
+							log.Infof("[%s] Enabling processors for panel", bc.PanelAddr)
+							bc.Processors.Store(true)                       // Ensure processors are enabled if panel does not support them
+							msg.PanelInfo.RawPanelSupport.Processors = true // Enable processor support
+						}
+					}
+				}
 			}
 
 			payload, err := json.Marshal(WSMessageToServer{MsgsFromPanel: msgs})

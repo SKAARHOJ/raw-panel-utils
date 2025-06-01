@@ -14,6 +14,7 @@ var (
 	clientID          = flag.String("client_id", "", "Client ID for authentication")
 	clientSecret      = flag.String("client_secret", "", "Client secret for authentication")
 	allowInsecureAuth = flag.Bool("allow_insecure_auth", false, "Allow authentication over insecure ws:// connections (NOT RECOMMENDED)")
+	processors        = flag.Bool("processors", false, "Force-Enable Raw Panel Protocol processors in-flight to panel")
 )
 
 func main() {
@@ -80,7 +81,7 @@ func main() {
 		// Create a bridge connection for each mapping
 		for _, m := range mappings {
 			log.Infof("Starting bridge for %s => %s", m.PanelAddr, m.ServerEndpoint)
-			bridgeConn := NewBridgeManager(m.PanelAddr, m.ServerEndpoint, *clientID, *clientSecret)
+			bridgeConn := NewBridgeManager(m.PanelAddr, m.ServerEndpoint, *clientID, *clientSecret, *processors)
 			bridgeConn.Start()
 			bridges = append(bridges, bridgeConn)
 		}

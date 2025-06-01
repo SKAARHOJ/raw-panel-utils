@@ -7,7 +7,7 @@ Next steps:
 - Mention in Raw Panel documentation (ASCII JSON only)
 
 - Adding support for TCP client connections? (backwards compatibility, local networks)
-
-- Implement processors midway?
+- Implement processors midway? (will grids work in Reactor??)
 - Modity the features object because looking at it from the Websocket server, Binary is not available and only JSON is possible?
+
 - Offer Binary mode?
