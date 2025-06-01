@@ -1,0 +1,1 @@
+First draft for a Web Socket Server based endpoint for Raw Panel panels.

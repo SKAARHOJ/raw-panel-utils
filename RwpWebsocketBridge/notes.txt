@@ -1,0 +1,13 @@
+Finalization minimum:
+- Port to be a package on skaarOS
+    - Panel socket connections for skaarOS?
+
+Next steps:
+- Evaluation by endusers
+- Mention in Raw Panel documentation (ASCII JSON only)
+
+- Adding support for TCP client connections? (backwards compatibility, local networks)
+
+- Implement processors midway?
+- Modity the features object because looking at it from the Websocket server, Binary is not available and only JSON is possible?
+- Offer Binary mode?
