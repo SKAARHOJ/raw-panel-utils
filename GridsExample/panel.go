@@ -8,15 +8,23 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
 
 	helpers "github.com/SKAARHOJ/rawpanel-lib"
+	monogfx "github.com/SKAARHOJ/rawpanel-lib/ibeam_lib_monogfx"
 	rwp "github.com/SKAARHOJ/rawpanel-lib/ibeam_rawpanel"
 	"github.com/SKAARHOJ/rawpanel-lib/topology"
+	rawpanelproc "github.com/SKAARHOJ/rawpanel-processors"
 	"github.com/fogleman/gg"
 	log "github.com/s00500/env_logger"
+)
+
+const (
+	HeartbeatInterval = 3000 // HeartbeatInterval is the time in milliseconds between heartbeats FROM the panel to us.
+	PingInterval      = 10 * time.Second
 )
 
 // PanelConnection encapsulates all state and channels related to a single raw panel connection.
@@ -63,7 +71,7 @@ func (p *PanelConnection) Start() {
 					SendPanelTopology:     true,
 					ReportHWCavailability: true,
 					SetHeartBeatTimer: &rwp.HeartBeatTimer{
-						Value: 3000, // Heartbeat in milliseconds
+						Value: HeartbeatInterval, // Heartbeat in milliseconds
 					},
 				},
 			},
@@ -103,8 +111,9 @@ func (p *PanelConnection) Start() {
 // messageLoop continuously processes messages received from the panel.
 // It responds to protocol-specific signals (like ping) and can be extended to handle topology/state/etc.
 func (p *PanelConnection) messageLoop() {
+
 	// Set up a ticker to send ping every 10 seconds
-	pingTicker := time.NewTicker(10 * time.Second)
+	pingTicker := time.NewTicker(PingInterval)
 	defer pingTicker.Stop()
 
 	for {
@@ -168,8 +177,8 @@ func (p *PanelConnection) AnalyzeTopologyForGrids(topo *topology.Topology) {
 	for _, grid := range topo.Grids {
 		log.Infof("[%s] Grid: %s, Size: %dx%d", p.Addr, grid.Title, grid.Cols, grid.Rows)
 
-		// Case 1: Uniform grid (MasterTypeIndex applies to all HWCs)
 		if grid.MasterTypeIndex != 0 {
+			// Uniform type grid
 			typeDef, ok := topo.TypeIndex[grid.MasterTypeIndex]
 			if ok {
 				log.Infof("[%s] Grid uses MasterTypeIndex %d: %s", p.Addr, grid.MasterTypeIndex, typeDef.Desc)
@@ -177,13 +186,21 @@ func (p *PanelConnection) AnalyzeTopologyForGrids(topo *topology.Topology) {
 
 				if typeDef.HasDisplay() {
 					disp := typeDef.DisplayInfo()
-					log.Infof("[%s] - Has Display: %dx%d, Type: %s, Shrink: %d, Border: %d", p.Addr, disp.W, disp.H, disp.Type, disp.Shrink, disp.Border)
+					log.Infof("[%s] - Has Display: %dx%d, Type: %s, Shrink: %d, Border: %d",
+						p.Addr, disp.W, disp.H, disp.Type, disp.Shrink, disp.Border)
+
+					for _, row := range grid.HWcMap {
+						for _, elem := range row {
+							label := fmt.Sprintf("%dx%d", disp.W, disp.H)
+							p.SendDisplayTestImage(elem.Id, disp, label, disp.Type)
+						}
+					}
 				}
 			} else {
 				log.Warnf("[%s] Grid %s has invalid MasterTypeIndex %d", p.Addr, grid.Title, grid.MasterTypeIndex)
 			}
 		} else {
-			// Case 2: Per-element types
+			// Per-element type grid
 			for rowIdx, row := range grid.HWcMap {
 				for colIdx, elem := range row {
 					hwcID := elem.Id
@@ -197,14 +214,14 @@ func (p *PanelConnection) AnalyzeTopologyForGrids(topo *topology.Topology) {
 					log.Infof("[%s] HWC ID: %d (%s) at [%d,%d] → InputType: %s, Desc: %s",
 						p.Addr, hwcID, hwcLabel, rowIdx, colIdx, typeDef.GetInputType(), typeDef.Desc)
 
-					// If AltDisplayId is present, use that type for display info
+					// Handle AltDisplayId if defined
 					usedAlt := false
-					altId := uint32(0)
+					usedDisplayId := uint32(hwcID)
 					if elem.AltDisplayId != 0 {
 						if altTypeDef, err := topo.GetHWCtype(elem.AltDisplayId); err == nil {
 							typeDef = altTypeDef
 							usedAlt = true
-							altId = elem.AltDisplayId
+							usedDisplayId = elem.AltDisplayId
 						}
 					}
 
@@ -212,50 +229,193 @@ func (p *PanelConnection) AnalyzeTopologyForGrids(topo *topology.Topology) {
 						disp := typeDef.DisplayInfo()
 						origin := ""
 						if usedAlt {
-							origin = fmt.Sprintf(" via AltDisplay=%d", altId)
+							origin = fmt.Sprintf(" via AltDisplay=%d", elem.AltDisplayId)
 						}
 						log.Infof("[%s]   ↳ Has Display: %dx%d, Type: %s, Shrink: %d, Border: %d%s",
 							p.Addr, disp.W, disp.H, disp.Type, disp.Shrink, disp.Border, origin)
+
+						label := fmt.Sprintf("%dx%d", disp.W, disp.H)
+						p.SendDisplayTestImage(usedDisplayId, disp, label, disp.Type)
 					}
 				}
 			}
 		}
 	}
+
+	// Apply random LED color per grid
+	p.SetRandomColorStatePerGrid(topo)
 }
 
-func createTestImage(W int, H int, imageType string, label string) ([]byte, error) {
+// SetRandomColorStatePerGrid applies a unique RGB color to each defined grid in the topology.
+func (p *PanelConnection) SetRandomColorStatePerGrid(topo *topology.Topology) {
+	if topo == nil || len(topo.Grids) == 0 {
+		log.Warnf("[%s] No grid layout in topology", p.Addr)
+		return
+	}
+
+	for _, grid := range topo.Grids {
+		hwcIDs := make([]uint32, 0, grid.Cols*grid.Rows)
+		for _, row := range grid.HWcMap {
+			for _, elem := range row {
+				hwcIDs = append(hwcIDs, elem.Id)
+			}
+		}
+
+		if len(hwcIDs) == 0 {
+			log.Infof("[%s] Grid %s contains no valid HWCs", p.Addr, grid.Title)
+			continue
+		}
+
+		// Generate a unique random RGB color
+		color := &rwp.HWCColor{
+			ColorRGB: &rwp.ColorRGB{
+				Red:   uint32(rand.Intn(256)),
+				Green: uint32(rand.Intn(256)),
+				Blue:  uint32(rand.Intn(256)),
+			},
+		}
+
+		state := &rwp.HWCState{
+			HWCIDs: hwcIDs,
+			HWCMode: &rwp.HWCMode{
+				State: rwp.HWCMode_ON,
+			},
+			HWCColor: color,
+		}
+
+		p.Incoming <- []*rwp.InboundMessage{
+			{States: []*rwp.HWCState{state}},
+		}
+
+		log.Infof("[%s] Set random color to %d HWCs in grid '%s'", p.Addr, len(hwcIDs), grid.Title)
+	}
+}
+
+func (p *PanelConnection) SendDisplayTestImage(hwcID uint32, disp *topology.TopologyHWcTypeDef_Display, label string, imageType string) {
+
+	// Create a test image
+	inImg, err := createTestImage(disp.W, disp.H, imageType, label)
+	if err != nil {
+		log.Errorf("[%s] Failed to create test image for HWC %d: %v", p.Addr, hwcID, err)
+		return
+	}
+
+	// Initialize a raw panel graphics state:
+	img := rwp.HWCGfx{
+		W: uint32(disp.W),
+		H: uint32(disp.H),
+	}
+
+	// Use monoImg to create a base:
+	monoImg := monogfx.MonoImg{}
+	monoImg.NewImage(int(img.W), int(img.H))
+
+	// Set up image type:
+	switch imageType {
+	case "color":
+		img.ImageType = rwp.HWCGfx_RGB16bit
+		img.ImageData = monoImg.GetImgSliceRGB()
+	case "gray":
+		img.ImageType = rwp.HWCGfx_Gray4bit
+		img.ImageData = monoImg.GetImgSliceGray()
+	default:
+		img.ImageType = rwp.HWCGfx_MONO
+		img.ImageData = monoImg.GetImgSlice()
+	}
+
+	// Set up bounds:
+	imgBounds := rawpanelproc.ImageBounds{X: 0, Y: 0, W: int(img.W), H: int(img.H)}
+
+	// Map the image onto the canvas
+	rawpanelproc.RenderImageOnCanvas(&img, inImg, imgBounds, "", "", "")
+
+	// Prepare and send the state update with embedded image
+	state := &rwp.HWCState{
+		HWCIDs:  []uint32{hwcID},
+		HWCGfx:  &img,
+		HWCText: nil,
+	}
+
+	p.Incoming <- []*rwp.InboundMessage{
+		{States: []*rwp.HWCState{state}},
+	}
+}
+
+func (p *PanelConnection) SendDisplayTestImageAsPNG(hwcID uint32, disp *topology.TopologyHWcTypeDef_Display, label string, imageType string) {
+	// Create the test image
+	img, err := createTestImage(disp.W, disp.H, imageType, label)
+	if err != nil {
+		log.Errorf("[%s] Failed to create image for HWC %d: %v", p.Addr, hwcID, err)
+		return
+	}
+
+	// Encode the image as PNG
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		log.Errorf("[%s] Failed to encode image for HWC %d: %v", p.Addr, hwcID, err)
+		return
+	}
+	imgData := buf.Bytes()
+
+	// Determine encoding based on image type
+	encoding := rwp.ProcGfxConverter_MONO
+	switch imageType {
+	case "color":
+		encoding = rwp.ProcGfxConverter_RGB16bit
+	case "gray":
+		encoding = rwp.ProcGfxConverter_Gray4bit
+	}
+
+	// Prepare and send the state update with embedded image
+	state := &rwp.HWCState{
+		HWCIDs: []uint32{hwcID},
+		Processors: &rwp.Processors{
+			GfxConv: &rwp.ProcGfxConverter{
+				W:         uint32(disp.W),
+				H:         uint32(disp.H),
+				ImageType: encoding,
+				Scaling:   rwp.ProcGfxConverter_STRETCH,
+				ImageData: imgData,
+			},
+		},
+	}
+
+	p.Incoming <- []*rwp.InboundMessage{
+		{States: []*rwp.HWCState{state}},
+	}
+}
+
+func createTestImage(W int, H int, imageType string, label string) (image.Image, error) {
 	canvas := image.NewRGBA(image.Rect(0, 0, W, H))
 	dc := gg.NewContextForRGBA(canvas)
 
-	// Fill background with gradient or solid
-	grad := gg.NewLinearGradient(0, float64(H), float64(W), 0)
-	if imageType == "color" {
-		grad.AddColorStop(0, color.RGBA{0, 255, 0, 255})
-		grad.AddColorStop(1, color.RGBA{0, 0, 255, 255})
-		grad.AddColorStop(0.5, color.RGBA{255, 0, 0, 255})
+	// Define the background gradient
+	if imageType == "color" || imageType == "gray" {
+		grad := gg.NewLinearGradient(0, 0, float64(W), float64(H))
+		if imageType == "color" {
+			grad.AddColorStop(0, color.RGBA{255, 0, 0, 255})   // Red
+			grad.AddColorStop(0.5, color.RGBA{0, 255, 0, 255}) // Green
+			grad.AddColorStop(1, color.RGBA{0, 0, 255, 255})   // Blue
+		} else {
+			grad.AddColorStop(0, color.RGBA{0, 0, 0, 255})       // Black
+			grad.AddColorStop(1, color.RGBA{255, 255, 255, 255}) // White
+		}
 		dc.SetFillStyle(grad)
-	} else if imageType == "gray" {
-		grad.AddColorStop(0, color.RGBA{0, 0, 0, 255})
-		grad.AddColorStop(1, color.RGBA{255, 255, 255, 255})
-		dc.SetFillStyle(grad)
+		dc.DrawRectangle(0, 0, float64(W), float64(H))
+		dc.Fill()
 	} else {
 		dc.SetColor(color.Black)
+		dc.Clear()
 	}
 
-	dc.Clear()
+	// Border
 	dc.SetColor(color.White)
 	dc.DrawRectangle(0, 0, float64(W), float64(H))
 	dc.Stroke()
 
-	// Use built-in font and draw the label (e.g., "3,7")
+	// Label
 	dc.SetColor(color.White)
 	dc.DrawStringAnchored(label, float64(W)/2, float64(H)/2, 0.5, 0.5)
 
-	// Encode image to PNG
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, canvas); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return canvas, nil
 }
