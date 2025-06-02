@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"math/rand"
 	"sync"
 	"time"
@@ -19,6 +21,9 @@ import (
 	"github.com/fogleman/gg"
 	log "github.com/s00500/env_logger"
 )
+
+//go:embed pictures/*
+var picturesFS embed.FS
 
 // DemoManager manages the demo functionality for this Raw Panel WebSocket server reference implementation.
 // It handles the panel topology, color cycling, and event triggers to display messages on the panels.
@@ -35,6 +40,7 @@ type DemoManager struct {
 	colorBase        int
 	textSnippets     []string
 	textSnippetsUTF8 []string
+	iconCodes        []string
 	colorMax         int
 	hwcList          []uint32
 	resumeTimer      *time.Timer
@@ -51,6 +57,7 @@ func NewDemoManager(sendFunc func(msg *rwp.InboundMessage)) *DemoManager {
 			"Привет", "Мир", "RawPanel ÆØÅ", "SKÅRHØJ", "Демо", "Триггер", "Событие", "ЦиклЦвета",
 			"こんにちは", "世界", "RawPanel", "SKAARHOJ", "デモ", "トリガー", "イベント", "カラーチャート",
 			"مرحبا", "العالم", "RawPanel", "SKAARHOJ", "عرض", "حدث", "تفعيل", "دورة اللون"},
+		iconCodes:     []string{"e056", "e8b6", "e88a", "e5d2", "e5cd", "e8b8", "e86c", "e838", "e627", "e92b", "e7ef", "e897", "e068", "e440", "f07f", "f0d1"}, // See complete list at https://fonts.google.com/icons, click on the icon and see it's "Code Point" in the right inspector (scroll down)
 		sendFunc:      sendFunc,
 		triggerChan:   make(chan *rwp.HWCEvent, 100),
 		hwcDisplayMap: make(map[uint32]*topology.TopologyHWcTypeDef),
@@ -220,7 +227,7 @@ func (dm *DemoManager) generateDisplayContent(hwcID uint32, typeDef *topology.To
 			return state // fallback: no display info available
 		}
 
-		switch rand.Intn(5) { // Now includes HWCGfx case
+		switch rand.Intn(7) { // Now includes HWCGfx case
 		case 0:
 			// HWCText
 			state.HWCText = &rwp.HWCText{
@@ -305,6 +312,61 @@ func (dm *DemoManager) generateDisplayContent(hwcID uint32, typeDef *topology.To
 				imgBounds := rawpanelproc.ImageBounds{X: 0, Y: 0, W: int(img.W), H: int(img.H)}
 				rawpanelproc.RenderImageOnCanvas(&img, inImg, imgBounds, "", "", "")
 				state.HWCGfx = &img
+
+			}
+		case 5:
+
+			encoding := rwp.ProcIcon_MONO
+			switch disp.Type {
+			case "color":
+				encoding = rwp.ProcIcon_RGB16bit
+			case "gray":
+				encoding = rwp.ProcIcon_Gray4bit
+			}
+			// Icon Processor
+			state.Processors = &rwp.Processors{
+				Icon: &rwp.ProcIcon{
+					W:         uint32(disp.W),
+					H:         uint32(disp.H),
+					GlyphCode: dm.iconCodes[rand.Intn(len(dm.iconCodes))],
+					//GlyphSize: ,
+					Background:       rand.Intn(2) == 0, // Randomly enable or disable background
+					BackgroundRadius: uint32(min(disp.W, disp.H) / 4),
+					IconType:         encoding,
+				},
+			}
+		case 6:
+			// Choose a random file
+			files := []string{"400x400.png", "400x400.webp", "400x400.jpg", "400x400.gif"}
+			randomFile := files[rand.Intn(len(files))]
+
+			f, err := picturesFS.Open("pictures/" + randomFile)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			var buf bytes.Buffer
+			if _, err := io.Copy(&buf, f); err != nil {
+				log.Fatal(err)
+			}
+			f.Close()
+
+			imageData := buf.Bytes()
+			encoding := rwp.ProcGfxConverter_MONO
+			switch disp.Type {
+			case "color":
+				encoding = rwp.ProcGfxConverter_RGB16bit
+			case "gray":
+				encoding = rwp.ProcGfxConverter_Gray4bit
+			}
+			state.Processors = &rwp.Processors{
+				GfxConv: &rwp.ProcGfxConverter{
+					W:         uint32(disp.W),
+					H:         uint32(disp.H),
+					ImageType: encoding,
+					Scaling:   rwp.ProcGfxConverter_FIT,
+					ImageData: imageData,
+				},
 			}
 		}
 	}

@@ -292,6 +292,7 @@ func (bc *BridgeConnection) readWebSocketMessages() {
 						if len(msg.States) > 0 {
 							for _, stateRec := range msg.States {
 								if stateRec.Processors != nil {
+									//log.Println(log.Indent(stateRec))
 									rawpanelproc.StateProcessor(stateRec)
 								}
 							}
