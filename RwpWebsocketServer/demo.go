@@ -255,11 +255,16 @@ func (dm *DemoManager) generateDisplayContent(hwcID uint32, typeDef *topology.To
 				UniText: &rwp.ProcUniText{
 					W:              uint32(disp.W),
 					H:              uint32(disp.H),
-					Title:          dm.textSnippetsUTF8[rand.Intn(len(dm.textSnippetsUTF8))],
-					Textline1:      dm.textSnippetsUTF8[rand.Intn(len(dm.textSnippetsUTF8))],
-					SolidHeaderBar: true,
+					Title:          maybeRandomText(dm.textSnippetsUTF8),
+					Textline1:      maybeRandomText(dm.textSnippetsUTF8),
+					Textline2:      maybeRandomText(dm.textSnippetsUTF8),
+					Textline3:      maybeRandomText(dm.textSnippetsUTF8),
+					Textline4:      maybeRandomText(dm.textSnippetsUTF8),
+					SolidHeaderBar: rand.Intn(2) == 1,
+					Align:          rwp.ProcUniText_AlignTypeE(rand.Intn(3)),
 				},
 			}
+
 		case 3:
 			// Static PNG image using processor
 			img, err := createTestImage(disp.W, disp.H, disp.Type, fmt.Sprintf("%dx%d", disp.W, disp.H))
@@ -407,4 +412,11 @@ func createTestImage(W int, H int, imageType string, label string) (image.Image,
 	dc.DrawStringAnchored(label, float64(W)/2, float64(H)/2, 0.5, 0.5)
 
 	return canvas, nil
+}
+
+func maybeRandomText(snippets []string) string {
+	if rand.Intn(2) == 0 {
+		return ""
+	}
+	return snippets[rand.Intn(len(snippets))]
 }
