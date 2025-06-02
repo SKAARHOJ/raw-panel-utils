@@ -192,7 +192,9 @@ func (p *PanelConnection) AnalyzeTopologyForGrids(topo *topology.Topology) {
 					for _, row := range grid.HWcMap {
 						for _, elem := range row {
 							label := fmt.Sprintf("%dx%d", disp.W, disp.H)
-							p.SendDisplayTestImage(elem.Id, disp, label, disp.Type)
+							for _, hwcID := range elem.Ids {
+								p.SendDisplayTestImage(hwcID, disp, label, disp.Type) // If there are multiple IDs, send to each although we don't know if they all support displays. But that is the blindness we choose with MasterTypeIndex.
+							}
 						}
 					}
 				}
@@ -201,44 +203,31 @@ func (p *PanelConnection) AnalyzeTopologyForGrids(topo *topology.Topology) {
 			}
 		} else {
 			// Per-element type grid
-			for rowIdx, row := range grid.HWcMap {
-				for colIdx, elem := range row {
-					hwcID := elem.Id
-					typeDef, err := topo.GetHWCtype(hwcID)
-					if err != nil {
-						log.Warnf("[%s] Could not find type for HWC ID %d at [%d,%d]", p.Addr, hwcID, rowIdx, colIdx)
-						continue
-					}
-
-					hwcLabel := topo.GetHWCtext(hwcID)
-					log.Infof("[%s] HWC ID: %d (%s) at [%d,%d] → InputType: %s, Desc: %s",
-						p.Addr, hwcID, hwcLabel, rowIdx, colIdx, typeDef.GetInputType(), typeDef.Desc)
-
-					// Handle AltDisplayId if defined
-					usedAlt := false
-					usedDisplayId := uint32(hwcID)
-					if elem.AltDisplayId != 0 {
-						if altTypeDef, err := topo.GetHWCtype(elem.AltDisplayId); err == nil {
-							typeDef = altTypeDef
-							usedAlt = true
-							usedDisplayId = elem.AltDisplayId
+			for rowIdx, row := range grid.HWcMap { // Iterate over each row in the HWC map grid
+				for colIdx, elem := range row { // Iterate over each element in the current row
+					for _, hwcID := range elem.Ids { // Iterate over all HWC IDs associated with this element
+						typeDef, err := topo.GetHWCtype(hwcID) // Get the type definition for the current HWC ID
+						if err != nil {
+							log.Warnf("[%s] Could not find type for HWC ID %d at [%d,%d]", p.Addr, hwcID, rowIdx, colIdx)
+							continue
 						}
-					}
 
-					if typeDef.HasDisplay() {
-						disp := typeDef.DisplayInfo()
-						origin := ""
-						if usedAlt {
-							origin = fmt.Sprintf(" via AltDisplay=%d", elem.AltDisplayId)
+						hwcLabel := topo.GetHWCtext(hwcID)                                     // Get the label/text associated with the HWC ID
+						log.Infof("[%s] HWC ID: %d (%s) at [%d,%d] → InputType: %s, Desc: %s", // Log detailed info about the HWC ID
+							p.Addr, hwcID, hwcLabel, rowIdx, colIdx, typeDef.GetInputType(), typeDef.Desc)
+
+						if typeDef.HasDisplay() { // If the HWC type has a display
+							disp := typeDef.DisplayInfo()                                              // Get display configuration/info
+							log.Infof("[%s]   ↳ Has Display: %dx%d, Type: %s, Shrink: %d, Border: %d", // Log display-related parameters
+								p.Addr, disp.W, disp.H, disp.Type, disp.Shrink, disp.Border)
+
+							label := fmt.Sprintf("%dx%d", disp.W, disp.H)         // Create label text representing display resolution
+							p.SendDisplayTestImage(hwcID, disp, label, disp.Type) // Send a test image to the display based on type
 						}
-						log.Infof("[%s]   ↳ Has Display: %dx%d, Type: %s, Shrink: %d, Border: %d%s",
-							p.Addr, disp.W, disp.H, disp.Type, disp.Shrink, disp.Border, origin)
-
-						label := fmt.Sprintf("%dx%d", disp.W, disp.H)
-						p.SendDisplayTestImage(usedDisplayId, disp, label, disp.Type)
 					}
 				}
 			}
+
 		}
 	}
 
@@ -257,7 +246,7 @@ func (p *PanelConnection) SetRandomColorStatePerGrid(topo *topology.Topology) {
 		hwcIDs := make([]uint32, 0, grid.Cols*grid.Rows)
 		for _, row := range grid.HWcMap {
 			for _, elem := range row {
-				hwcIDs = append(hwcIDs, elem.Id)
+				hwcIDs = append(hwcIDs, elem.Ids...)
 			}
 		}
 
